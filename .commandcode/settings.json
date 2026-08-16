@@ -28,7 +28,9 @@
       "Shell(powershell -Command \"Stop-Process -Id 38116 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; $still = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($still) { $still | Select-Object OwningProcess } else { 'Port 3000 free' }\")",
       "Shell(powershell -Command \"Move-Item -Path 'D:\\Projects\\qaguard-ai\\components\\Header.tsx','D:\\Projects\\qaguard-ai\\components\\Sidebar.tsx' -Destination 'D:\\Projects\\qaguard-ai\\src\\components\\'; Remove-Item -Path 'D:\\Projects\\qaguard-ai\\components' -Force; Get-ChildItem -Path 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object Name\")",
       "Shell(powershell -Command \"Get-Item 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object FullName, Length, Attributes, PSIsContainer | Format-List; $b = [System.IO.File]::ReadAllBytes('D:\\Projects\\qaguard-ai\\src\\components'); 'Bytes: ' + $b.Length\")",
-      "Shell(powershell -Command \"Remove-Item -Path 'D:\\Projects\\qaguard-ai\\src\\components' -Force; New-Item -ItemType Directory -Path 'D:\\Projects\\qaguard-ai\\src\\components' | Out-Null; Get-Item 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object FullName, PSIsContainer\")"
+      "Shell(powershell -Command \"Remove-Item -Path 'D:\\Projects\\qaguard-ai\\src\\components' -Force; New-Item -ItemType Directory -Path 'D:\\Projects\\qaguard-ai\\src\\components' | Out-Null; Get-Item 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object FullName, PSIsContainer\")",
+      "Shell(powershell -Command \"git diff --stat; '--- files changed in theme fix:'; git diff --name-only\")",
+      "Shell(powershell -Command \"$c = (Invoke-WebRequest -UseBasicParsing http://localhost:3000).Content; 'Theme init script: ' + $c.Contains('qaguard-theme'); 'suppressHydrationWarning in html tag: ' + $c.Contains('suppressHydrationWarning'); 'Server toggle Dark: ' + ($c.Contains('>Dark<') -and -not $c.Contains('>Light<'))\")"
     ],
     "deny": [],
     "defaultMode": "default"

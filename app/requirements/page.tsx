@@ -2,17 +2,26 @@
 
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { analyzeRequirement } from "@/agents/requirement-agent";
-import { generateTestCases } from "@/agents/test-engine-agent";
-import { generateTestData } from "@/agents/test-data-agent";
-import { generateQualityReport } from "@/agents/quality-agent";
 import { useWorkflow } from "@/lib/state/workflow-provider";
 import { validateRequirementInput } from "@/lib/validation/requirement";
-import { makeId } from "@/lib/utils/traceability";
-import type { Requirement } from "@/types/qa";
+import type {
+  QualityReport,
+  Requirement,
+  RequirementAnalysis,
+  TestCase,
+  TestData,
+} from "@/types/qa";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { Card, SectionTitle } from "@/components/ui/primitives";
 import { Badge } from "@/components/ui/badge";
+
+interface AnalyzeResponse {
+  requirement: Requirement;
+  analysis: RequirementAnalysis;
+  testCases: TestCase[];
+  testData: TestData[];
+  qualityReport: QualityReport;
+}
 
 export default function RequirementsPage() {
   const { state, setRequirement, setAnalysis, setTestCases, setTestData, setQualityReport } =
@@ -22,6 +31,7 @@ export default function RequirementsPage() {
   const [description, setDescription] = useState("");
   const [criteria, setCriteria] = useState<string[]>([""]);
   const [errors, setErrors] = useState<string[]>([]);
+  const [apiError, setApiError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
 
   const { analysis } = state;
@@ -46,36 +56,42 @@ export default function RequirementsPage() {
       return;
     }
     setErrors([]);
+    setApiError(null);
     setRunning(true);
 
-    const requirement: Requirement = {
-      id: makeId("REQ"),
-      title: title.trim(),
-      description: description.trim(),
-      acceptanceCriteria: nonEmptyCriteria.map((c) => c.trim()),
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch("/api/requirements/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          acceptanceCriteria: nonEmptyCriteria.map((c) => c.trim()),
+        }),
+      });
 
-    // Deterministic mock pipeline — all derived from the actual input.
-    const analysisResult = analyzeRequirement(requirement);
-    const testCases = generateTestCases(requirement, analysisResult);
-    const testData = testCases.map((tc) => generateTestData(tc));
-    const qualityReport = generateQualityReport({
-      requirement,
-      analysis: analysisResult,
-      testCases,
-      artifacts: [],
-    });
+      const data = (await res.json()) as Partial<AnalyzeResponse> & {
+        error?: string;
+      };
 
-    // Simulate a short async "agent run" so the UI feels intentional.
-    await new Promise((r) => setTimeout(r, 450));
+      if (!res.ok) {
+        setApiError(
+          data.error ?? "Unable to analyze the requirement. Please try again."
+        );
+        setRunning(false);
+        return;
+      }
 
-    setRequirement(requirement);
-    setAnalysis(analysisResult);
-    setTestCases(testCases);
-    setTestData(testData);
-    setQualityReport(qualityReport);
-    setRunning(false);
+      setRequirement(data.requirement ?? null);
+      setAnalysis(data.analysis ?? null);
+      setTestCases(data.testCases ?? []);
+      setTestData(data.testData ?? []);
+      setQualityReport(data.qualityReport ?? null);
+    } catch {
+      setApiError("AI service is temporarily unavailable.");
+    } finally {
+      setRunning(false);
+    }
   };
 
   const inputCls =
@@ -164,6 +180,28 @@ export default function RequirementsPage() {
               </div>
             )}
 
+            {apiError && (
+              <div
+                role="alert"
+                className="flex items-center gap-2 rounded-lg border border-error/20 bg-error/5 p-3"
+              >
+                <svg
+                  className="h-4 w-4 shrink-0 text-error"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+                  />
+                </svg>
+                <p className="text-sm text-error">{apiError}</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <button
                 type="button"
@@ -171,10 +209,10 @@ export default function RequirementsPage() {
                 disabled={running}
                 className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {running ? "Analyzing..." : "Analyze Requirement"}
+                {running ? "Analyzing requirement..." : "Analyze Requirement"}
               </button>
               <span className="text-xs text-text-muted">
-                Phase 1 · deterministic mock analysis
+                Powered by OpenRouter · DeepSeek
               </span>
             </div>
           </div>

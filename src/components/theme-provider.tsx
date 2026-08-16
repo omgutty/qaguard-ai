@@ -2,6 +2,16 @@
 
 // Global theme state. Dark is the default; persists via localStorage.
 // No page reload on toggle.
+//
+// Hydration-safe pattern using useSyncExternalStore:
+// - During SSR and the initial client (hydration) render, React uses
+//   getServerSnapshot → the deterministic default "dark", matching the
+//   server HTML exactly. No hydration mismatch.
+// - After hydration, React swaps to the client snapshot (readStoredTheme),
+//   synchronizing with the persisted localStorage value and the data-theme
+//   attribute already applied pre-hydration by the <head> script in
+//   app/layout.tsx. No flash.
+// - The toggle never reloads the page.
 
 import {
   createContext,
@@ -9,7 +19,7 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -25,30 +35,56 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getInitialTheme(): Theme {
+function readStoredTheme(): Theme {
   if (typeof window === "undefined") return "dark";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {
+    // localStorage unavailable (private mode, etc.) — fall through to dark.
+  }
+  return "dark";
+}
+
+function subscribe(callback: () => void): () => void {
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+// SSR/hydration snapshot: deterministic default so server and client match.
+function getServerSnapshot(): Theme {
   return "dark";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  // Lazy initializer reads localStorage on first client render; SSR returns
-  // "dark". The inline <head> script already set data-theme pre-hydration,
-  // so the first client render matches without a separate hydration effect.
-  const [theme, setThemeState] = useState<Theme>(getInitialTheme);
+  const theme = useSyncExternalStore(
+    subscribe,
+    readStoredTheme,
+    getServerSnapshot
+  );
 
+  // Apply the theme to <html> and persist whenever it changes.
   useEffect(() => {
-    const root = document.documentElement;
-    root.setAttribute("data-theme", theme);
-    window.localStorage.setItem(STORAGE_KEY, theme);
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Ignore storage write failures.
+    }
   }, [theme]);
 
-  const setTheme = useCallback((t: Theme) => setThemeState(t), []);
-  const toggleTheme = useCallback(
-    () => setThemeState((prev) => (prev === "dark" ? "light" : "dark")),
-    []
-  );
+  const setTheme = useCallback((t: Theme) => {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, t);
+    } catch {
+      // Ignore storage write failures.
+    }
+    window.dispatchEvent(new Event("storage"));
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    setTheme(theme === "dark" ? "light" : "dark");
+  }, [setTheme, theme]);
 
   const value = useMemo(
     () => ({ theme, toggleTheme, setTheme }),

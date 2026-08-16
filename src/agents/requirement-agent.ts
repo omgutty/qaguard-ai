@@ -1,228 +1,203 @@
-// Requirement Agent — deterministic mock analysis (Phase 1).
-// Phase 2: swap internals for an LLM call, keep analyzeRequirement() signature.
+// Requirement Agent — real LLM implementation (Phase 2 Step 2).
+// Calls the existing OpenRouter provider (src/lib/ai) from the server only.
+// The deterministic mock is preserved in requirement-agent.mock.ts.
 
 import {
-  claritySignal,
-  completenessSignal,
-  overallFromAnalysis,
-  testabilitySignal,
-  wordCount,
-} from "@/lib/utils/scoring";
-import { clampScore, makeId } from "@/lib/utils/traceability";
-import type {
-  Recommendation,
-  Requirement,
-  RequirementAnalysis,
-  RequirementGap,
-  RequirementGapType,
-  RequirementRisk,
-} from "@/types/qa";
+  generateStructuredResponse,
+  getResponseText,
+  OpenRouterError,
+  parseJsonResponse,
+  type OpenRouterChatMessage,
+} from "@/lib/ai";
+import { validateRequirementAnalysis } from "@/lib/validation/analysis";
+import type { Requirement, RequirementAnalysis } from "@/types/qa";
 
-const vagueTerms = [
-  "etc",
-  "and so on",
-  "should",
-  "probably",
-  "maybe",
-  "somehow",
-  "as soon as possible",
-  "fast",
-];
+// ---------------------------------------------------------------------------
+// Prompt
+// ---------------------------------------------------------------------------
 
-function detectGaps(requirement: Requirement): RequirementGap[] {
-  const gaps: RequirementGap[] = [];
-  const seen = new Set<string>();
+export const REQUIREMENT_ANALYSIS_PROMPT_VERSION = "1.0";
 
-  const pushGap = (
-    type: RequirementGapType,
-    description: string,
-    suggestion: string,
-    source: RequirementGap["source"]
-  ) => {
-    const key = `${type}-${source}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    gaps.push({
-      id: makeId("GAP"),
-      type,
-      description,
-      suggestion,
-      source,
-    });
-  };
+function buildSystemPrompt(): string {
+  return [
+    "You are a senior QA test architect and requirements analyst.",
+    "",
+    "Your job is to analyze a supplied software requirement for:",
+    "- completeness",
+    "- clarity",
+    "- testability",
+    "- ambiguity",
+    "- missing acceptance criteria",
+    "- missing business rules",
+    "- missing validation behavior",
+    "- missing error handling",
+    "- missing boundary conditions",
+    "- potential testing risks",
+    "",
+    "GROUNDING RULES (most important):",
+    "- Use ONLY the supplied requirement as factual evidence.",
+    "- Never invent business rules, expected behavior, UI elements, API behavior, or test data requirements as facts.",
+    "- Explicitly identify missing information rather than resolving it silently.",
+    "- Distinguish clearly: (1) explicitly stated facts, (2) missing information, (3) risks/inferences, (4) AI recommendations.",
+    "- Identify ambiguity rather than assuming an interpretation.",
+    "- If a concern is not grounded in the requirement, it belongs in recommendations (AI-derived), not facts.",
+    "",
+    "SCORING (0-100, must be justified by the supplied requirement):",
+    "- completenessScore: Does the requirement contain enough information to understand expected behavior and important acceptance conditions?",
+    "- clarityScore: Is the requirement unambiguous and understandable?",
+    "- testabilityScore: Can a QA engineer derive objective test scenarios and expected results from the requirement?",
+    "- overallScore: A balanced assessment of the three dimensions.",
+    "Do not produce random or arbitrary scores.",
+    "",
+    "OUTPUT FORMAT:",
+    "Return ONLY a JSON object conforming EXACTLY to this shape:",
+    `{
+      "requirementId": "<the exact requirement id supplied>",
+      "completenessScore": <0-100 integer>,
+      "clarityScore": <0-100 integer>,
+      "testabilityScore": <0-100 integer>,
+      "overallScore": <0-100 integer>,
+      "gaps": [
+        { "type": "missing_acceptance_criteria|ambiguous|unverifiable|unclear_error_handling", "description": "...", "suggestion": "...", "source": "Description|Acceptance Criteria" }
+      ],
+      "risks": [
+        { "severity": "low|medium|high", "description": "...", "mitigation": "..." }
+      ],
+      "recommendations": [
+        { "type": "clarity|testability|coverage|security", "text": "...", "origin": "derived|ai" }
+      ]
+    }`,
+    "Guidance:",
+    "- gaps: information needed for confident testing but MISSING from the requirement. Only report gaps genuinely relevant to the supplied requirement.",
+    "- risks: realistic QA risks arising from the requirement (ambiguity, missing negative/boundary behavior, security-sensitive behavior without defined rules). State that they are risks, not established requirements.",
+    "- recommendations: suggestions to improve the requirement or its testability. Use origin \"derived\" when directly grounded in the requirement text, otherwise \"ai\".",
+    "- Keep gap/risk/recommendation descriptions concise and actionable.",
+    "- Do not include fields outside this shape.",
+  ].join("\n");
+}
 
-  if (requirement.acceptanceCriteria.length < 3) {
-    pushGap(
-      "missing_acceptance_criteria",
-      `Only ${requirement.acceptanceCriteria.length} acceptance criterion/criteria provided. Core behaviors may be untested.`,
-      "Add acceptance criteria covering happy path, edge cases, and failure behavior.",
-      "Acceptance Criteria"
-    );
-  }
+function buildUserMessage(requirement: Requirement): string {
+  return [
+    "Analyze the following requirement.",
+    `Return the requirementId exactly as: ${requirement.id}`,
+    "",
+    "REQUIREMENT:",
+    JSON.stringify(
+      {
+        id: requirement.id,
+        title: requirement.title,
+        description: requirement.description,
+        acceptanceCriteria: requirement.acceptanceCriteria,
+      },
+      null,
+      2
+    ),
+  ].join("\n");
+}
 
-  const lower = (
-    `${requirement.title} ${requirement.description}` +
-    requirement.acceptanceCriteria.join(" ")
-  ).toLowerCase();
-  if (vagueTerms.some((t) => lower.includes(t))) {
-    pushGap(
-      "ambiguous",
-      "Requirement uses vague terms (e.g. 'should', 'probably', 'etc.') that are not testable as written.",
-      "Replace vague terms with concrete, measurable expectations.",
-      "Description"
-    );
-  }
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
 
-  if (!/(error|invalid|fail|reject|not allowed|unauthorized)/i.test(lower)) {
-    pushGap(
-      "unclear_error_handling",
-      "No failure/error scenarios are described. Negative-path testing cannot be derived.",
-      "Describe expected behavior when inputs are invalid or a system error occurs.",
-      "Description"
-    );
-  }
+export type RequirementAgentErrorCode =
+  | "missing_api_key"
+  | "provider_error"
+  | "invalid_response"
+  | "empty_response";
 
-  if (
-    !/(must|shall|will|returns?|shows?|displays?|fails?|blocks?)/i.test(
-      requirement.acceptanceCriteria.join(" ")
-    )
+/** Controlled, user-safe error. Never serialize `cause` to the client. */
+export class RequirementAgentError extends Error {
+  code: RequirementAgentErrorCode;
+  userMessage: string;
+  cause?: Error;
+
+  constructor(
+    code: RequirementAgentErrorCode,
+    userMessage: string,
+    cause?: Error
   ) {
-    pushGap(
-      "unverifiable",
-      "Acceptance criteria are not phrased as verifiable outcomes, making them hard to assert in tests.",
-      "Rewrite each criterion as an observable, assertable outcome.",
-      "Acceptance Criteria"
-    );
+    super(userMessage);
+    this.name = "RequirementAgentError";
+    this.code = code;
+    this.userMessage = userMessage;
+    this.cause = cause;
   }
-
-  return gaps;
 }
 
-function detectRisks(requirement: Requirement): RequirementRisk[] {
-  const risks: RequirementRisk[] = [];
-  const lower = (
-    `${requirement.title} ${requirement.description}` +
-    requirement.acceptanceCriteria.join(" ")
-  ).toLowerCase();
-
-  if (!/(password|auth|login|session|permission|role|ssn|card|secret)/i.test(lower)) {
-    risks.push({
-      id: makeId("RSK"),
-      severity: "medium",
-      description:
-        "No authentication, authorization, or sensitive-data handling is described.",
-      mitigation:
-        "Confirm whether the feature handles credentials or PII and add security-focused criteria.",
-    });
+function toAgentError(err: unknown): RequirementAgentError {
+  if (err instanceof RequirementAgentError) return err;
+  if (err instanceof OpenRouterError) {
+    switch (err.code) {
+      case "missing_api_key":
+      case "invalid_api_key":
+        return new RequirementAgentError(
+          "missing_api_key",
+          "AI service is temporarily unavailable.",
+          err
+        );
+      case "rate_limited":
+        return new RequirementAgentError(
+          "provider_error",
+          "AI service is busy. Please try again.",
+          err
+        );
+      case "invalid_json":
+      case "empty_response":
+        return new RequirementAgentError(
+          "invalid_response",
+          "AI returned an unexpected response. Please try again.",
+          err
+        );
+      default:
+        return new RequirementAgentError(
+          "provider_error",
+          "AI service is temporarily unavailable.",
+          err
+        );
+    }
   }
-
-  if (wordCount(requirement.description) < 25) {
-    risks.push({
-      id: makeId("RSK"),
-      severity: "medium",
-      description:
-        "Description is brief; important context may be missing for implementation.",
-      mitigation:
-        "Expand the description with user context, business rules, and constraints.",
-    });
-  }
-
-  if (requirement.acceptanceCriteria.some((c) => c.length > 200)) {
-    risks.push({
-      id: makeId("RSK"),
-      severity: "low",
-      description:
-        "One or more acceptance criteria are very long and may combine multiple behaviors.",
-      mitigation:
-        "Split combined criteria into single, focused, testable statements.",
-    });
-  }
-
-  return risks;
-}
-
-function buildRecommendations(
-  requirement: Requirement,
-  analysis: RequirementAnalysis
-): Recommendation[] {
-  const recommendations: Recommendation[] = [];
-  const push = (
-    type: Recommendation["type"],
-    text: string,
-    origin: Recommendation["origin"]
-  ) => {
-    recommendations.push({ id: makeId("REC"), type, text, origin });
-  };
-
-  if (analysis.clarityScore < 70) {
-    push(
-      "clarity",
-      "Rewrite ambiguous phrasing to remove 'should/probably/etc.' so outcomes are measurable.",
-      "derived"
-    );
-  }
-  if (analysis.testabilityScore < 60) {
-    push(
-      "testability",
-      "Phrase each acceptance criterion as a verifiable outcome (must/shall/returns).",
-      "derived"
-    );
-  }
-  if (analysis.completenessScore < 60) {
-    push(
-      "coverage",
-      "Add acceptance criteria for edge cases and negative scenarios to raise completeness.",
-      "ai"
-    );
-  }
-
-  const lower = (
-    `${requirement.title} ${requirement.description}` +
-    requirement.acceptanceCriteria.join(" ")
-  ).toLowerCase();
-  if (!/(error|invalid|fail)/i.test(lower)) {
-    push(
-      "coverage",
-      "Consider a dedicated error-handling criterion (e.g. 'shows a clear message when input is invalid').",
-      "ai"
-    );
-  }
-  if (/(password|login|auth)/i.test(lower)) {
-    push(
-      "security",
-      "Security-sensitive criteria (auth, passwords) should be covered by explicit negative and boundary tests.",
-      "ai"
-    );
-  }
-
-  return recommendations;
-}
-
-export function analyzeRequirement(
-  requirement: Requirement
-): RequirementAnalysis {
-  const completenessScore = completenessSignal(requirement);
-  const clarityScore = claritySignal(requirement);
-  const testabilityScore = testabilitySignal(requirement);
-  const overallScore = overallFromAnalysis(
-    completenessScore,
-    clarityScore,
-    testabilityScore
+  return new RequirementAgentError(
+    "provider_error",
+    "Unable to analyze the requirement. Please try again.",
+    err instanceof Error ? err : undefined
   );
+}
 
-  const gaps = detectGaps(requirement);
-  const risks = detectRisks(requirement);
+// ---------------------------------------------------------------------------
+// Public API (server-side)
+// ---------------------------------------------------------------------------
 
-  const analysis: RequirementAnalysis = {
-    requirementId: requirement.id,
-    completenessScore: clampScore(completenessScore),
-    clarityScore: clampScore(clarityScore),
-    testabilityScore: clampScore(testabilityScore),
-    overallScore: clampScore(overallScore),
-    gaps,
-    risks,
-    recommendations: [],
-  };
-  analysis.recommendations = buildRecommendations(requirement, analysis);
-  return analysis;
+/**
+ * Analyze a requirement via the real LLM (OpenRouter).
+ * Server-side only — never import into client components.
+ * Throws RequirementAgentError with a safe userMessage on failure.
+ */
+export async function analyzeRequirement(
+  requirement: Requirement
+): Promise<RequirementAnalysis> {
+  const messages: OpenRouterChatMessage[] = [
+    { role: "system", content: buildSystemPrompt() },
+    { role: "user", content: buildUserMessage(requirement) },
+  ];
+
+  try {
+    const response = await generateStructuredResponse(messages, {
+      json: true,
+      temperature: 0.2,
+      maxTokens: 2048,
+    });
+
+    const text = getResponseText(response);
+    if (!text || !text.trim()) {
+      throw new OpenRouterError(
+        "OpenRouter returned an empty response.",
+        "empty_response"
+      );
+    }
+
+    const raw = parseJsonResponse<unknown>(response);
+    return validateRequirementAnalysis(raw, requirement.id);
+  } catch (err) {
+    throw toAgentError(err);
+  }
 }
