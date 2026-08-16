@@ -27,7 +27,7 @@ interface GenerateResponse {
 }
 
 export default function RequirementsPage() {
-  const { state, setRequirement, setAnalysis, setTestCases, setTestData, setQualityReport } =
+  const { state, setRequirement, setAnalysis, setTestCases, setTestData, setQualityReport, setReviews, setAutomationArtifacts } =
     useWorkflow();
 
   const [title, setTitle] = useState("");
@@ -65,6 +65,14 @@ export default function RequirementsPage() {
     setErrors([]);
     setApiError(null);
     setRunning(true);
+
+    // Starting a new analysis resets downstream pipeline artifacts so stale
+    // data from a previous session never leaks into the new one.
+    setTestCases([]);
+    setTestData([]);
+    setQualityReport(null);
+    setReviews([]);
+    setAutomationArtifacts([]);
 
     try {
       // Step 1: Requirement Analysis (real LLM via server route).
@@ -193,15 +201,19 @@ export default function RequirementsPage() {
         .trim() ?? "";
     const criteria: string[] = [];
     if (criteriaBlock) {
-      const re = /###\s*AC-\d+[^\n]*\n([\s\S]*?)(?=\n###|\z)/g;
-      let m: RegExpExecArray | null;
-      while ((m = re.exec(criteriaBlock[1])) !== null) {
-        const text = m[1]
+      // Split on "### AC-xx" headings (robust to the last criterion being
+      // followed by a "## " section). First segment may carry the heading line.
+      const segments = criteriaBlock[1]
+        .split(/\n###\s*AC-\d+[^\n]*\n/)
+        .filter(Boolean);
+      for (const segment of segments) {
+        const cleaned = segment
+          .replace(/^###\s*AC-\d+[^\n]*\n/, "") // drop a leading heading line
           .split("\n")
           .map((l) => l.replace(/^[-*]\s*/, "").trim())
           .filter(Boolean)
           .join(" ");
-        if (text) criteria.push(text);
+        if (cleaned) criteria.push(cleaned);
       }
     }
     return { title, description, criteria: criteria.length > 0 ? criteria : [""] };

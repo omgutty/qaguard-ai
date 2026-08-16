@@ -47,6 +47,7 @@ interface WorkflowContextValue {
 const WorkflowContext = createContext<WorkflowContextValue | null>(null);
 
 const STORAGE_KEY = "qaguard-workflow";
+const SCHEMA_VERSION = 2;
 
 const EMPTY_STATE: WorkflowState = {
   requirement: null,
@@ -58,9 +59,41 @@ const EMPTY_STATE: WorkflowState = {
   qualityReport: null,
 };
 
+/**
+ * Migrate a persisted qualityReport from an older schema into the current one.
+ * Old reports (pre-`findings`/`requirementId`) are repaired defensively so a
+ * stale localStorage entry can never crash a page. Unknown shapes are reset.
+ */
+function migrateQualityReport(raw: unknown): QualityReport | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const toScore = (v: unknown, fallback = 0): number =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 && v <= 100 ? v : fallback;
+  const toCount = (v: unknown, fallback = 0): number =>
+    typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : fallback;
+  return {
+    requirementId: typeof r.requirementId === "string" ? r.requirementId : "",
+    overallScore: toScore(r.overallScore),
+    requirementCoverage: toScore(r.requirementCoverage),
+    testCoverage: toScore(r.testCoverage),
+    traceabilityScore: toScore(r.traceabilityScore),
+    testabilityScore: toScore(r.testabilityScore),
+    aiConfidence: toScore(r.aiConfidence),
+    requirementGaps: toCount(r.requirementGaps),
+    aiDerivedTests: toCount(r.aiDerivedTests),
+    approvedTests: toCount(r.approvedTests),
+    rejectedTests: toCount(r.rejectedTests),
+    findings: Array.isArray(r.findings) ? r.findings : [],
+  };
+}
+
 function sanitizeStored(raw: string): WorkflowState {
-  const parsed = JSON.parse(raw) as Partial<WorkflowState>;
+  const parsed = JSON.parse(raw) as Partial<WorkflowState> & { schemaVersion?: number };
   if (!parsed || typeof parsed !== "object") return EMPTY_STATE;
+  // If this is a newer schema we don't understand, start fresh.
+  if (parsed.schemaVersion && parsed.schemaVersion > SCHEMA_VERSION) {
+    return EMPTY_STATE;
+  }
   return {
     requirement: parsed.requirement ?? null,
     analysis: parsed.analysis ?? null,
@@ -70,7 +103,7 @@ function sanitizeStored(raw: string): WorkflowState {
     automationArtifacts: Array.isArray(parsed.automationArtifacts)
       ? parsed.automationArtifacts
       : [],
-    qualityReport: parsed.qualityReport ?? null,
+    qualityReport: migrateQualityReport(parsed.qualityReport),
   };
 }
 
@@ -89,7 +122,10 @@ function emit() {
 function setState(next: WorkflowState) {
   current = next;
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ schemaVersion: SCHEMA_VERSION, ...next })
+    );
   } catch {
     // Ignore storage write failures.
   }

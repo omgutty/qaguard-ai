@@ -211,7 +211,7 @@ export default function QualityPage() {
             </div>
 
             {/* AI Findings */}
-            {qualityReport.findings.length > 0 && (
+            {Array.isArray(qualityReport.findings) && qualityReport.findings.length > 0 && (
               <div className="mt-6">
                 <Card className="p-6">
                   <div className="flex items-center gap-2">

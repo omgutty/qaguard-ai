@@ -24,6 +24,7 @@ export default function AutomationPage() {
     setGenerating(true);
     setError(null);
     const newArtifacts: AutomationArtifact[] = [];
+    let failures = 0;
     try {
       for (const tc of candidates) {
         const data = testData.find((td) => td.testCaseId === tc.id);
@@ -38,15 +39,22 @@ export default function AutomationPage() {
           }),
         });
         const body = (await res.json()) as { artifact?: AutomationArtifact; error?: string };
-        if (!res.ok) {
-          setError(body.error ?? "Unable to generate automation.");
-          break;
+        if (!res.ok || !body.artifact) {
+          failures += 1;
+          // Continue with the remaining candidates so one failure doesn't
+          // block the rest; surface a summary at the end.
+          continue;
         }
-        if (body.artifact) newArtifacts.push(body.artifact);
+        newArtifacts.push(body.artifact);
       }
       const combined = [...automationArtifacts, ...newArtifacts];
       setAutomationArtifacts(combined);
       if (newArtifacts.length > 0) setSelected(newArtifacts[0]);
+      if (failures > 0) {
+        setError(
+          `${failures} test case(s) could not be automated. ${newArtifacts.length > 0 ? "The rest were generated successfully." : "Please try again."}`
+        );
+      }
     } catch {
       setError("AI service is temporarily unavailable.");
     } finally {
