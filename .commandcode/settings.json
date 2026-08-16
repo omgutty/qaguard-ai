@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Shell(npm:*)",
+      "Shell(powershell -Command \"Start-Sleep -Seconds 5; (Invoke-WebRequest -UseBasicParsing http://localhost:3000).Content\")",
+      "Shell(powershell -Command \"[System.IO.File]::ReadAllText('D:\\Projects\\qaguard-ai\\components\\Header.tsx') -split '' | Select-String 'QAGuard AI' | Select-Object -First 1\")",
+      "Shell(powershell -Command \"$b = [System.IO.File]::ReadAllBytes('D:\\Projects\\qaguard-ai\\components\\Header.tsx'); $text = [System.Text.Encoding]::UTF8.GetString($b); $idx = $text.IndexOf('QAGuard AI'); $text.Substring($idx, 60)\")",
+      "Shell(powershell -Command \"$r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; if ($r.Content -match 'QAGuard AI') { $idx = $r.Content.IndexOf('QAGuard AI'); $r.Content.Substring($idx, 80) }\")",
+      "Shell(powershell -Command \"$r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; $c = $r.Content; $idx = $c.IndexOf('AI Test Intelligence'); $c.Substring($idx - 30, 60)\")",
+      "Shell(powershell -Command \"$r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; $c = $r.Content; $idx = $c.IndexOf('AI Test Intelligence'); $c.Substring($idx - 70, 140)\")",
+      "Shell(powershell -Command \"$r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; $c = $r.Content; $idx = $c.IndexOf('rounded-full'); $c.Substring($idx, 140)\")",
+      "Shell(powershell -Command \"$b = [System.IO.File]::ReadAllBytes('D:\\Projects\\qaguard-ai\\components\\Header.tsx'); $text = [System.Text.Encoding]::UTF8.GetString($b); $idx = $text.IndexOf('QAGuard AI'); $text.Substring($idx, 50)\")",
+      "Shell(powershell -Command \"Get-Content 'C:\\Users\\orgutty\\AppData\\Local\\Temp\\commandcode\\shellout\\2026-08-16T07-27-14-590Z-s0yoq5em.log' -Tail 30\")",
+      "Shell(powershell -Command \"Get-Item 'C:\\Users\\orgutty\\AppData\\Local\\Temp\\commandcode\\shellout\\2026-08-16T07-27-14-590Z-s0yoq5em.log' | Select-Object Length, LastWriteTime; Get-Content 'C:\\Users\\orgutty\\AppData\\Local\\Temp\\commandcode\\shellout\\2026-08-16T07-27-14-590Z-s0yoq5em.log' -Tail 30 -ErrorAction SilentlyContinue\")",
+      "Shell(powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize\")",
+      "Shell(powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object LocalAddress, LocalPort, OwningProcess\")",
+      "Shell(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=48112' | Select-Object ProcessId, CommandLine | Format-List\")",
+      "Shell(powershell -Command \"$p = Get-Process -Id 568 -ErrorAction SilentlyContinue; if ($p) { $p | Select-Object Id, ProcessName, StartTime } else { 'PID 568 not running' }\")",
+      "Shell(powershell -Command \"$p = Get-Process -Id 48112; $p | Select-Object Id, ProcessName, StartTime, Path | Format-List; $child = Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -eq 48112 }; $child | Select-Object ProcessId, ParentProcessId, Name, CommandLine | Format-List\")",
+      "Shell(powershell -Command \"Stop-Process -Id 48112,31536 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 800; $still = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($still) { $still | Select-Object OwningProcess } else { 'Port 3000 free' }\")",
+      "Shell(powershell -Command \"Start-Sleep -Seconds 6; $r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; $c = $r.Content; $idx = $c.IndexOf('rounded-full'); $c.Substring($idx, 140)\")",
+      "Shell(powershell -Command \"$b = [System.IO.File]::ReadAllBytes('D:\\Projects\\qaguard-ai\\components\\Header.tsx'); $hex = ($b | ForEach-Object { $_.ToString('X2') }) -join ' '; $hex\")",
+      "Shell(powershell -Command \"Stop-Process -Id 43016 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue | Select-Object OwningProcess\")",
+      "Shell(powershell -Command \"Get-CimInstance Win32_Process -Filter 'ProcessId=45852' | Select-Object ProcessId, ParentProcessId, CommandLine | Format-List\")",
+      "Shell(powershell -Command \"Stop-Process -Id 45852 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; $still = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($still) { $still | Select-Object OwningProcess } else { 'Port 3000 free' }\")",
+      "Shell(powershell -Command \"Start-Sleep -Seconds 4; $r = Invoke-WebRequest -UseBasicParsing http://localhost:3000; $c = $r.Content; $idx = $c.IndexOf('rounded-full'); $c.Substring($idx, 140)\")",
+      "Shell(powershell -Command \"Stop-Process -Id 31316 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; $still = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($still) { $still | Select-Object OwningProcess } else { 'Port 3000 free' }\")",
+      "Shell(powershell -Command \"Stop-Process -Id 38116 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; $still = Get-NetTCPConnection -LocalPort 3000 -State Listen -ErrorAction SilentlyContinue; if ($still) { $still | Select-Object OwningProcess } else { 'Port 3000 free' }\")",
+      "Shell(powershell -Command \"Move-Item -Path 'D:\\Projects\\qaguard-ai\\components\\Header.tsx','D:\\Projects\\qaguard-ai\\components\\Sidebar.tsx' -Destination 'D:\\Projects\\qaguard-ai\\src\\components\\'; Remove-Item -Path 'D:\\Projects\\qaguard-ai\\components' -Force; Get-ChildItem -Path 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object Name\")",
+      "Shell(powershell -Command \"Get-Item 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object FullName, Length, Attributes, PSIsContainer | Format-List; $b = [System.IO.File]::ReadAllBytes('D:\\Projects\\qaguard-ai\\src\\components'); 'Bytes: ' + $b.Length\")",
+      "Shell(powershell -Command \"Remove-Item -Path 'D:\\Projects\\qaguard-ai\\src\\components' -Force; New-Item -ItemType Directory -Path 'D:\\Projects\\qaguard-ai\\src\\components' | Out-Null; Get-Item 'D:\\Projects\\qaguard-ai\\src\\components' | Select-Object FullName, PSIsContainer\")"
+    ],
+    "deny": [],
+    "defaultMode": "default"
+  }
+}
