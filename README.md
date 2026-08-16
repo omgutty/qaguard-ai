@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛡️ QAGuard AI
 
-## Getting Started
+**AI-Powered Test Intelligence & Governance**
 
-First, run the development server:
+QAGuard AI turns raw software requirements into traceable, reviewable, audit-ready test artifacts — analysis → test cases → test data → human sign-off → automation → quality proof. **Nothing ships to automation without a human approving it.**
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## Problem Statement
+
+Most QA teams generate test artifacts manually, with little traceability between a requirement and the tests that verify it. When a requirement changes, nobody knows which tests are affected. When automation is written, nobody can prove it covers the approved acceptance criteria.
+
+QAGuard AI closes that loop with a governed, human-in-the-middle pipeline.
+
+## Solution
+
+A guided workflow that derives a requirement's analysis, test cases, test data, and automation candidates — and requires human approval before anything is automated. Every artifact carries traceability back to the requirement, and a quality dashboard proves coverage in one screen.
+
+## V1 Workflow (fixed)
+
+```
+Requirement Analysis → Test Generation → Test Data → Human Review
+        → Playwright Generation → AI Quality / Traceability Dashboard
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Features
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- **Requirement Analysis** — deterministic scores (Completeness / Clarity / Testability / Overall), gaps, risks, and recommendations derived from the actual requirement text
+- **Test Generation** — typed test cases (positive, negative, boundary, validation, security, regression) each with source traceability (acceptance criterion or AI-derived)
+- **Test Data** — realistic datasets per test case, with sensitive values masked and a reveal toggle; generated vs. edited badges
+- **Human Review** — the governance gate: approve / reject / edit each test case. Unapproved cases cannot be automated
+- **Automation** — Playwright TypeScript generated only for approved test cases, with copy + download
+- **Quality & Traceability Dashboard** — overall quality score, coverage metrics, AI confidence, and a live pipeline flow with counts at every stage
+- **Dark, data-dense UI** — score rings, monospace IDs, status color grammar, first-class empty/error states
+- **Session persistence** — shared client state survives navigation (no database in Phase 1)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Tech Stack
 
-## Learn More
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 16 (App Router, Turbopack) |
+| Language | TypeScript (strict, no `any`) |
+| Styling | Tailwind CSS v4 |
+| State | React Context (`WorkflowProvider`) |
+| Deploy | Vercel / GitHub |
 
-To learn more about Next.js, take a look at the following resources:
+## Project Structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+├── agents/                  # Deterministic mock AI agents (Phase 1)
+│   ├── requirement-agent.ts #   analyzeRequirement()
+│   ├── test-engine-agent.ts #   generateTestCases()
+│   ├── test-data-agent.ts   #   generateTestData()
+│   ├── automation-agent.ts  #   generateAutomation()
+│   └── quality-agent.ts     #   generateQualityReport()
+├── app/                     # App Router routes
+│   ├── page.tsx             #   Dashboard (/)
+│   ├── requirements/        #   Requirement entry + analysis
+│   ├── test-cases/          #   Generated test cases
+│   ├── test-data/           #   Generated test data
+│   ├── review/              #   Human review / governance gate
+│   ├── automation/          #   Playwright generation
+│   └── quality/             #   Quality & traceability dashboard
+├── components/              # Shared UI (Sidebar, Header, ui/*)
+├── lib/
+│   ├── ai/                  # AI integration layer (Phase 2)
+│   ├── state/               # WorkflowProvider (client state)
+│   ├── utils/               # Traceability + scoring helpers
+│   └── validation/          # Input validation
+└── types/
+    └── qa.ts                # Data contracts (strict, union types)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## How to Run Locally
 
-## Deploy on Vercel
+```bash
+npm install
+npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Open [http://localhost:3000](http://localhost:3000).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run lint    # ESLint
+npm run build   # Production build + typecheck
+```
+
+## Current Phase
+
+> **Phase 1 uses deterministic mock AI responses.** Real LLM integration will be added in Phase 2.
+
+Every "AI" output is a real TypeScript function that inspects the actual input and computes a believable result — no hardcoded copy-paste, no network calls, no API keys required.
+
+## Future AI Integration (Phase 2)
+
+The agent layer is designed so mock internals can be swapped for real LLM calls **without changing any public function signature**:
+
+```
+requirement-agent.ts   → analyzeRequirement()
+test-engine-agent.ts   → generateTestCases()
+test-data-agent.ts     → generateTestData()
+automation-agent.ts    → generateAutomation()
+quality-agent.ts       → generateQualityReport()
+```
+
+Phase 2 will add an LLM provider behind `src/lib/ai/` with the same contract. No Langflow, no n8n, no MCP, no RAG, no database in Phase 1.
+
+## Deployment
+
+The project is Vercel-ready: static prerendering, no env vars required, no build-time secrets. Connect the repository to Vercel and it deploys as-is.

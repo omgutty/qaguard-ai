@@ -1,0 +1,162 @@
+"use client";
+
+import { AppShell } from "@/components/app-shell";
+import { useWorkflow } from "@/lib/state/workflow-provider";
+import { buildWorkflowStages } from "@/lib/utils/traceability";
+import { PipelineFlow } from "@/components/ui/pipeline-flow";
+import { ScoreRing } from "@/components/ui/score-ring";
+import { StatCard } from "@/components/ui/stat-card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Card, SectionTitle } from "@/components/ui/primitives";
+
+function MetricBar({ label, value }: { label: string; value: number }) {
+  const tone = value >= 80 ? "bg-emerald-400" : value >= 60 ? "bg-amber-400" : "bg-red-400";
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <span className="text-sm text-zinc-300">{label}</span>
+        <span className="font-mono text-sm text-zinc-100">{Math.round(value)}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div className={"h-full rounded-full " + tone} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export default function QualityPage() {
+  const { state } = useWorkflow();
+  const { requirement, testCases, testData, automationArtifacts, qualityReport } = state;
+
+  const stages = buildWorkflowStages(requirement, testCases, testData, automationArtifacts);
+  const pendingCount = qualityReport
+    ? testCases.length - qualityReport.approvedTests - qualityReport.rejectedTests
+    : 0;
+
+  return (
+    <AppShell>
+      <div className="mx-auto max-w-6xl px-6 py-8">
+        <h2 className="text-2xl font-bold tracking-tight text-white">Quality & Traceability</h2>
+        <p className="mt-1 text-sm text-zinc-400">
+          A deterministic quality report computed from the live pipeline state.
+        </p>
+
+        {!qualityReport ? (
+          <div className="mt-6">
+            <EmptyState
+              title="No quality report yet"
+              description="Run a requirement analysis to compute the quality dashboard."
+              action={
+                <a
+                  href="/requirements"
+                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+                >
+                  Go to Requirements
+                </a>
+              }
+            />
+          </div>
+        ) : (
+          <>
+            {/* Hero: pipeline flow */}
+            <div className="mt-6">
+              <Card className="p-5">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Pipeline Flow
+                </p>
+                <PipelineFlow stages={stages} />
+              </Card>
+            </div>
+
+            {/* Overall + metric bars */}
+            <div className="mt-6 grid gap-4 lg:grid-cols-[auto_1fr]">
+              <Card className="p-6">
+                <div className="flex flex-col items-center">
+                  <ScoreRing value={qualityReport.overallScore} size={140} sublabel="overall" />
+                  <p className="mt-3 text-sm font-medium text-zinc-300">Overall Quality</p>
+                </div>
+              </Card>
+              <Card className="p-6">
+                <SectionTitle>Quality Metrics</SectionTitle>
+                <div className="mt-4 space-y-4">
+                  <MetricBar label="Requirement Coverage" value={qualityReport.requirementCoverage} />
+                  <MetricBar label="Test Coverage" value={qualityReport.testCoverage} />
+                  <MetricBar label="Traceability" value={qualityReport.traceabilityScore} />
+                  <MetricBar label="Testability" value={qualityReport.testabilityScore} />
+                  <MetricBar label="AI Confidence" value={qualityReport.aiConfidence} />
+                </div>
+              </Card>
+            </div>
+
+            {/* Counts */}
+            <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
+              <StatCard label="Requirement Gaps" value={qualityReport.requirementGaps} tone={qualityReport.requirementGaps > 0 ? "amber" : "emerald"} />
+              <StatCard label="AI-Derived Tests" value={qualityReport.aiDerivedTests} tone="indigo" />
+              <StatCard label="Approved" value={qualityReport.approvedTests} tone="emerald" />
+              <StatCard label="Rejected" value={qualityReport.rejectedTests} tone="red" />
+              <StatCard label="Pending" value={pendingCount} tone="amber" />
+              <StatCard label="Automation Files" value={automationArtifacts.length} tone="sky" />
+            </div>
+
+            {/* Traceability table */}
+            <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06]">
+              <div className="border-b border-white/[0.06] bg-zinc-900/60 px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Traceability Matrix
+                </p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-white/[0.06] bg-zinc-900/40 text-xs uppercase tracking-wider text-zinc-500">
+                      <th className="px-4 py-3 font-medium">Requirement</th>
+                      <th className="px-4 py-3 font-medium">Test Case</th>
+                      <th className="px-4 py-3 font-medium">Source</th>
+                      <th className="px-4 py-3 font-medium">Review</th>
+                      <th className="px-4 py-3 font-medium">Automation</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {testCases.map((tc) => (
+                      <tr key={tc.id} className="border-b border-white/[0.04] bg-zinc-950/40">
+                        <td className="px-4 py-3 font-mono text-xs text-zinc-500">{requirement?.id ?? "—"}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-zinc-100">{tc.title}</div>
+                          <div className="font-mono text-[11px] text-zinc-600">{tc.id}</div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs text-zinc-400">{tc.source}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={
+                              "rounded-md border px-2 py-0.5 font-mono text-[11px] " +
+                              (tc.reviewStatus === "approved"
+                                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                                : tc.reviewStatus === "rejected"
+                                  ? "border-red-400/20 bg-red-500/10 text-red-300"
+                                  : tc.reviewStatus === "modified"
+                                    ? "border-sky-400/20 bg-sky-500/10 text-sky-300"
+                                    : "border-amber-400/20 bg-amber-500/10 text-amber-300")
+                            }
+                          >
+                            {tc.reviewStatus.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-xs">
+                          {automationArtifacts.some((a) => a.testCaseId === tc.id) ? (
+                            <span className="text-emerald-300">✓ generated</span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </AppShell>
+  );
+}
