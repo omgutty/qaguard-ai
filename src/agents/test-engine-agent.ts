@@ -78,6 +78,7 @@ function buildSystemPrompt(): string {
     "- type MUST be one of the six enum values above. Never use \"functional\", \"smoke\", \"e2e\", \"usability\", or any other word.",
     "- reviewStatus MUST be one of the four enum values above. Never use \"draft\", \"new\", \"open\", or any other word.",
     "- Every test case MUST have a non-empty title, description, expectedResult, and at least one step.",
+    "- CONCISENESS: keep step actions and expected results short and precise. Do not pad steps with trivial detail.",
     "- Do not include fields outside this shape.",
   ].join("\n");
 }
@@ -134,7 +135,8 @@ export type TestEngineAgentErrorCode =
   | "missing_api_key"
   | "provider_error"
   | "invalid_response"
-  | "empty_response";
+  | "empty_response"
+  | "validation_error";
 
 /** Controlled, user-safe error. Never serialize `cause` to the client. */
 export class TestEngineAgentError extends Error {
@@ -187,6 +189,18 @@ function toAgentError(err: unknown): TestEngineAgentError {
         );
     }
   }
+  // TestCasesValidationError (or any other local validation failure) is
+  // distinguishable from provider/network failures.
+  if (
+    err instanceof Error &&
+    (err.name === "TestCasesValidationError" || err.name === "QualityValidationError")
+  ) {
+    return new TestEngineAgentError(
+      "validation_error",
+      "AI output did not meet the required contract. Please try again.",
+      err
+    );
+  }
   return new TestEngineAgentError(
     "provider_error",
     "Unable to generate test cases. Please try again.",
@@ -201,6 +215,14 @@ function toAgentError(err: unknown): TestEngineAgentError {
 /**
  * Generate test cases via the real LLM (OpenRouter).
  * Server-side only — never import into client components.
+ *
+ * Strategy:
+ * 1. Call the LLM with the full prompt.
+ * 2. Validate the response (validator is the final gate — never weakened).
+ * 3. If the FIRST response fails validation or JSON parsing, do ONE retry
+ *    with a stricter correction prompt that tells the model exactly what to fix.
+ * 4. If the retry also fails, throw a controlled TestEngineAgentError.
+ *
  * Throws TestEngineAgentError with a safe userMessage on failure.
  */
 export async function generateTestCases(
@@ -213,10 +235,11 @@ export async function generateTestCases(
   ];
 
   try {
+    // First attempt.
     const response = await generateStructuredResponse(messages, {
       json: true,
       temperature: 0.2,
-      maxTokens: 4096,
+      maxTokens: 8192,
     });
 
     const text = getResponseText(response);
@@ -227,8 +250,64 @@ export async function generateTestCases(
       );
     }
 
-    const raw = parseJsonResponse<unknown>(response);
-    return validateTestCases(raw, requirement.id);
+    try {
+      // Parse + validate the first attempt. If the JSON is truncated or the
+      // structure is invalid, fall through to the single retry below.
+      const raw = parseJsonResponse<unknown>(response);
+      return validateTestCases(raw, requirement.id);
+    } catch (firstErr) {
+      // Single controlled retry with a stricter correction prompt. This
+      // catches BOTH invalid JSON (e.g. truncated output) and validation
+      // failures. The validator remains the final gate — never weakened.
+      const retryReason =
+        firstErr instanceof OpenRouterError && firstErr.code === "invalid_json"
+          ? "The response was not valid JSON (it may have been truncated). Return complete, valid JSON."
+          : String(firstErr instanceof Error ? firstErr.message : "validation failed");
+
+      const correction: OpenRouterChatMessage[] = [
+        ...messages,
+        {
+          role: "assistant",
+          content: text,
+        },
+        {
+          role: "user",
+          content: [
+            "Your previous response did not satisfy the required contract.",
+            "Fix ALL of the following issues and return ONLY a corrected JSON object with the EXACT same top-level shape ({\"testCases\": [...]}):",
+            retryReason,
+            "",
+            "STRICT RULES (do not deviate):",
+            "- type MUST be one of: positive, negative, boundary, validation, security, regression.",
+            "- priority MUST be one of: low, medium, high, critical.",
+            "- reviewStatus MUST be one of: pending, approved, rejected, modified.",
+            "- source MUST be \"Acceptance Criteria #N\" or \"AI-Derived\".",
+            "- Every test case MUST have a non-empty id, title, description, expectedResult, preconditions (array), and steps (non-empty array).",
+            "- Every step MUST have integer stepNumber >= 1, action, testData, expectedResult (non-empty strings).",
+            "- requirementId MUST equal " + requirement.id + " on every test case.",
+            "- Respond with complete, valid JSON. Do not truncate. Do not add text outside the JSON.",
+            "- Keep descriptions and step text concise.",
+          ].join("\n"),
+        },
+      ];
+
+      const retry = await generateStructuredResponse(correction, {
+        json: true,
+        temperature: 0.1,
+        maxTokens: 8192,
+      });
+
+      const retryText = getResponseText(retry);
+      if (!retryText || !retryText.trim()) {
+        throw new OpenRouterError(
+          "OpenRouter returned an empty response.",
+          "empty_response"
+        );
+      }
+
+      const retryRaw = parseJsonResponse<unknown>(retry);
+      return validateTestCases(retryRaw, requirement.id);
+    }
   } catch (err) {
     throw toAgentError(err);
   }

@@ -81,6 +81,13 @@ export async function POST(request: Request) {
     });
   } catch (err) {
     if (err instanceof TestEngineAgentError) {
+      // validation_error → 422 (contract not met, retryable); provider issues → 503.
+      if (err.code === "validation_error") {
+        return NextResponse.json(
+          { error: err.userMessage },
+          { status: 422 }
+        );
+      }
       const status =
         err.code === "missing_api_key" || err.code === "provider_error"
           ? 503
