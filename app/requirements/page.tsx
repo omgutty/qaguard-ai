@@ -37,6 +37,7 @@ export default function RequirementsPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generatingData, setGeneratingData] = useState(false);
 
   const { analysis } = state;
 
@@ -128,10 +129,49 @@ export default function RequirementsPage() {
       setTestCases(data.testCases ?? []);
       setTestData(data.testData ?? []);
       setQualityReport(data.qualityReport ?? null);
+
+      // Step 3: Real Test Data Agent (separate LLM call via server route).
+      if (data.testCases && data.testCases.length > 0) {
+        await handleGenerateTestData(requirement, analysis, data.testCases);
+      }
     } catch {
       setApiError("AI service is temporarily unavailable.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleGenerateTestData = async (
+    requirement: Requirement,
+    analysis: RequirementAnalysis,
+    testCases: TestCase[]
+  ) => {
+    setGeneratingData(true);
+    try {
+      const res = await fetch("/api/test-data/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirement, analysis, testCases }),
+      });
+
+      const data = (await res.json()) as Partial<GenerateResponse> & {
+        error?: string;
+      };
+
+      if (!res.ok) {
+        setApiError(
+          data.error ?? "Unable to generate test data. Please try again."
+        );
+        setGeneratingData(false);
+        return;
+      }
+
+      setTestData(data.testData ?? []);
+      setQualityReport(data.qualityReport ?? null);
+    } catch {
+      setApiError("AI service is temporarily unavailable.");
+    } finally {
+      setGeneratingData(false);
     }
   };
 
@@ -247,14 +287,38 @@ export default function RequirementsPage() {
               <button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={running || generating}
-                className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={running || generating || generatingData}
+                className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
               >
+                {(running || generating || generatingData) && (
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
+                  </svg>
+                )}
                 {running
                   ? "Analyzing requirement..."
                   : generating
                     ? "Generating test cases..."
-                    : "Analyze Requirement"}
+                    : generatingData
+                      ? "Generating test data..."
+                      : "Analyze Requirement"}
               </button>
               <span className="text-xs text-text-muted">
                 Powered by OpenRouter · DeepSeek
