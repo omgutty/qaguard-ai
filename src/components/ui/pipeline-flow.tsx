@@ -2,12 +2,12 @@ import type { WorkflowStage } from "@/types/qa";
 import { cx } from "@/components/ui/primitives";
 
 const STAGE_META: Record<string, { key: string; color: string }> = {
-  requirement: { key: "REQ", color: "text-indigo-300 border-indigo-400/30" },
-  "test-cases": { key: "TC", color: "text-sky-300 border-sky-400/30" },
-  "test-data": { key: "TD", color: "text-emerald-300 border-emerald-400/30" },
-  review: { key: "RV", color: "text-amber-300 border-amber-400/30" },
-  automation: { key: "AU", color: "text-fuchsia-300 border-fuchsia-400/30" },
-  quality: { key: "QL", color: "text-emerald-300 border-emerald-400/30" },
+  requirement: { key: "REQ", color: "text-indigo-400 border-indigo-400/30" },
+  "test-cases": { key: "TC", color: "text-sky-400 border-sky-400/30" },
+  "test-data": { key: "TD", color: "text-emerald-400 border-emerald-400/30" },
+  review: { key: "RV", color: "text-amber-400 border-amber-400/30" },
+  automation: { key: "AU", color: "text-fuchsia-400 border-fuchsia-400/30" },
+  quality: { key: "QL", color: "text-emerald-400 border-emerald-400/30" },
 };
 
 export function PipelineFlow({ stages }: { stages: WorkflowStage[] }) {
@@ -23,31 +23,31 @@ export function PipelineFlow({ stages }: { stages: WorkflowStage[] }) {
                 className={cx(
                   "flex w-36 flex-col rounded-lg border p-3 transition-colors",
                   stage.complete
-                    ? "border-white/10 bg-zinc-900/70"
-                    : "border-white/[0.05] bg-zinc-900/40"
+                    ? "border-border bg-surface"
+                    : "border-border/60 bg-surface-elevated/60"
                 )}
               >
                 <span
                   className={cx(
                     "font-mono text-[10px] font-bold uppercase tracking-widest",
-                    stage.complete ? meta.color : "text-zinc-600"
+                    stage.complete ? meta.color : "text-text-muted"
                   )}
                 >
                   {meta.key}
                 </span>
-                <span className="mt-1 text-sm font-semibold text-zinc-200">
+                <span className="mt-1 text-sm font-semibold text-text-primary">
                   {stage.label}
                 </span>
-                <span className="mt-2 font-mono text-lg font-bold tabular-nums text-zinc-100">
+                <span className="mt-2 font-mono text-lg font-bold tabular-nums text-text-primary">
                   {stage.count}
                 </span>
-                <span className="mt-auto text-[11px] text-zinc-500">
+                <span className="mt-auto text-[11px] text-text-muted">
                   {stage.complete ? "Complete" : "Pending"}
                 </span>
               </div>
               {!isLast && (
                 <div className="flex items-center px-1.5">
-                  <span className="text-zinc-600">→</span>
+                  <span className="text-text-muted">→</span>
                 </div>
               )}
             </li>

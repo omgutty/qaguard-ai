@@ -78,13 +78,16 @@ export default function RequirementsPage() {
     setRunning(false);
   };
 
+  const inputCls =
+    "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30";
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <h2 className="text-2xl font-bold tracking-tight text-white">
+        <h2 className="text-2xl font-bold tracking-tight text-text-primary">
           Requirement Analysis
         </h2>
-        <p className="mt-1 text-sm text-zinc-400">
+        <p className="mt-1 text-sm text-text-secondary">
           Paste a user story or requirement. The Requirement Agent derives
           scores, gaps, and risks from the actual text.
         </p>
@@ -93,7 +96,7 @@ export default function RequirementsPage() {
         <Card className="mt-6 p-6">
           <div className="grid gap-4">
             <div>
-              <label htmlFor="req-title" className="mb-1.5 block text-sm font-medium text-zinc-300">
+              <label htmlFor="req-title" className="mb-1.5 block text-sm font-medium text-text-secondary">
                 Title
               </label>
               <input
@@ -101,11 +104,11 @@ export default function RequirementsPage() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 placeholder="e.g. User can reset their password"
-                className="w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-400/50 focus:outline-none focus:ring-1 focus:ring-indigo-400/30"
+                className={inputCls}
               />
             </div>
             <div>
-              <label htmlFor="req-desc" className="mb-1.5 block text-sm font-medium text-zinc-300">
+              <label htmlFor="req-desc" className="mb-1.5 block text-sm font-medium text-text-secondary">
                 User story / description
               </label>
               <textarea
@@ -114,27 +117,27 @@ export default function RequirementsPage() {
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="As a user, I want to..."
-                className="w-full resize-y rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-400/50 focus:outline-none focus:ring-1 focus:ring-indigo-400/30"
+                className={inputCls + " resize-y"}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-zinc-300">
+              <label className="mb-1.5 block text-sm font-medium text-text-secondary">
                 Acceptance criteria
               </label>
               <div className="space-y-2">
                 {criteria.map((c, i) => (
                   <div key={i} className="flex gap-2">
-                    <span className="mt-2.5 font-mono text-xs text-zinc-600">AC-{i + 1}</span>
+                    <span className="mt-2.5 font-mono text-xs text-text-muted">AC-{i + 1}</span>
                     <input
                       value={c}
                       onChange={(e) => updateCriterion(i, e.target.value)}
-                      placeholder={`e.g. User receives a reset email within 30 seconds`}
-                      className="w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-indigo-400/50 focus:outline-none focus:ring-1 focus:ring-indigo-400/30"
+                      placeholder="e.g. User receives a reset email within 30 seconds"
+                      className={inputCls}
                     />
                     <button
                       type="button"
                       onClick={() => removeCriterion(i)}
-                      className="rounded-md px-2 text-zinc-600 hover:text-red-400"
+                      className="rounded-md px-2 text-text-muted hover:text-error"
                       aria-label="Remove criterion"
                     >
                       ×
@@ -145,16 +148,16 @@ export default function RequirementsPage() {
               <button
                 type="button"
                 onClick={addCriterion}
-                className="mt-2 text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                className="mt-2 text-sm font-medium text-accent hover:text-accent/80"
               >
                 + Add criterion
               </button>
             </div>
 
             {errors.length > 0 && (
-              <div className="rounded-lg border border-red-400/20 bg-red-500/5 p-3">
+              <div className="rounded-lg border border-error/20 bg-error/5 p-3">
                 {errors.map((e) => (
-                  <p key={e} className="text-sm text-red-300">
+                  <p key={e} className="text-sm text-error">
                     {e}
                   </p>
                 ))}
@@ -166,11 +169,11 @@ export default function RequirementsPage() {
                 type="button"
                 onClick={handleAnalyze}
                 disabled={running}
-                className="rounded-lg bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {running ? "Analyzing..." : "Analyze Requirement"}
               </button>
-              <span className="text-xs text-zinc-600">
+              <span className="text-xs text-text-muted">
                 Phase 1 · deterministic mock analysis
               </span>
             </div>
@@ -194,17 +197,17 @@ export default function RequirementsPage() {
               <Card className="p-6">
                 <SectionTitle>Requirement Gaps</SectionTitle>
                 {analysis.gaps.length === 0 ? (
-                  <p className="mt-2 text-sm text-zinc-500">No gaps detected.</p>
+                  <p className="mt-2 text-sm text-text-secondary">No gaps detected.</p>
                 ) : (
                   <ul className="mt-3 space-y-3">
                     {analysis.gaps.map((gap) => (
-                      <li key={gap.id} className="rounded-lg border border-white/[0.06] bg-zinc-950/50 p-3">
+                      <li key={gap.id} className="rounded-lg border border-border bg-bg p-3">
                         <div className="flex items-center gap-2">
                           <Badge tone="amber">{gap.type.replace(/_/g, " ").toUpperCase()}</Badge>
-                          <span className="font-mono text-[11px] text-zinc-600">{gap.source}</span>
+                          <span className="font-mono text-[11px] text-text-muted">{gap.source}</span>
                         </div>
-                        <p className="mt-2 text-sm text-zinc-300">{gap.description}</p>
-                        <p className="mt-1 text-xs text-zinc-500">→ {gap.suggestion}</p>
+                        <p className="mt-2 text-sm text-text-secondary">{gap.description}</p>
+                        <p className="mt-1 text-xs text-text-muted">→ {gap.suggestion}</p>
                       </li>
                     ))}
                   </ul>
@@ -214,18 +217,18 @@ export default function RequirementsPage() {
               <Card className="p-6">
                 <SectionTitle>Risks</SectionTitle>
                 {analysis.risks.length === 0 ? (
-                  <p className="mt-2 text-sm text-zinc-500">No risks identified.</p>
+                  <p className="mt-2 text-sm text-text-secondary">No risks identified.</p>
                 ) : (
                   <ul className="mt-3 space-y-3">
                     {analysis.risks.map((risk) => (
-                      <li key={risk.id} className="rounded-lg border border-white/[0.06] bg-zinc-950/50 p-3">
+                      <li key={risk.id} className="rounded-lg border border-border bg-bg p-3">
                         <div className="flex items-center gap-2">
                           <Badge tone={risk.severity === "high" ? "red" : risk.severity === "medium" ? "amber" : "zinc"}>
                             {risk.severity.toUpperCase()}
                           </Badge>
                         </div>
-                        <p className="mt-2 text-sm text-zinc-300">{risk.description}</p>
-                        <p className="mt-1 text-xs text-zinc-500">→ {risk.mitigation}</p>
+                        <p className="mt-2 text-sm text-text-secondary">{risk.description}</p>
+                        <p className="mt-1 text-xs text-text-muted">→ {risk.mitigation}</p>
                       </li>
                     ))}
                   </ul>
@@ -237,11 +240,11 @@ export default function RequirementsPage() {
               <SectionTitle>Recommendations</SectionTitle>
               <ul className="mt-3 space-y-2">
                 {analysis.recommendations.map((rec) => (
-                  <li key={rec.id} className="flex items-start gap-3 rounded-lg border border-white/[0.06] bg-zinc-950/50 p-3">
+                  <li key={rec.id} className="flex items-start gap-3 rounded-lg border border-border bg-bg p-3">
                     <Badge tone={rec.origin === "derived" ? "emerald" : "indigo"}>
                       {rec.origin === "derived" ? "DERIVED" : "AI-DERIVED"}
                     </Badge>
-                    <span className="text-sm text-zinc-300">{rec.text}</span>
+                    <span className="text-sm text-text-secondary">{rec.text}</span>
                   </li>
                 ))}
               </ul>

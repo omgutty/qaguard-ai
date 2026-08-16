@@ -1,8 +1,5 @@
 import type { ReactNode } from "react";
 
-// Lightweight design tokens used across the app. Kept in TS so they stay in
-// sync with Tailwind classes without a plugin.
-
 export const ACCENT = "indigo-500";
 
 export const STATUS_COLORS = {
@@ -67,7 +64,7 @@ export function Card({
   return (
     <div
       className={cx(
-        "rounded-xl border border-white/[0.06] bg-zinc-900/60 backdrop-blur-sm",
+        "rounded-xl border border-border bg-surface",
         className
       )}
     >
@@ -84,7 +81,12 @@ export function SectionTitle({
   className?: string;
 }) {
   return (
-    <h3 className={cx("text-sm font-semibold tracking-tight text-zinc-100", className)}>
+    <h3
+      className={cx(
+        "text-sm font-semibold tracking-tight text-text-primary",
+        className
+      )}
+    >
       {children}
     </h3>
   );
@@ -97,5 +99,7 @@ export function MutedText({
   children: ReactNode;
   className?: string;
 }) {
-  return <p className={cx("text-sm text-zinc-400", className)}>{children}</p>;
+  return (
+    <p className={cx("text-sm text-text-secondary", className)}>{children}</p>
+  );
 }

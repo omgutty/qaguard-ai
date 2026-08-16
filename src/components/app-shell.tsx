@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="flex min-h-screen bg-bg text-text-primary">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />

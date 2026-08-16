@@ -32,10 +32,10 @@ export default function DashboardPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">
               Workflow Overview
             </h2>
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-1 text-sm text-text-secondary">
               {requirement
                 ? `Analyzing: ${requirement.title}`
                 : "No requirement analyzed yet."}
@@ -43,7 +43,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href="/requirements"
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
           >
             {requirement ? "New Analysis" : "Start New Analysis"}
           </Link>
@@ -52,7 +52,7 @@ export default function DashboardPage() {
         {/* Hero: pipeline flow */}
         <div className="mt-6">
           <Card className="p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Pipeline Status
             </p>
             <PipelineFlow stages={stages} />
@@ -71,50 +71,50 @@ export default function DashboardPage() {
         {/* Quality score + review status */}
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
           <Card className="p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Quality Score
             </p>
             {qualityReport ? (
               <div className="flex items-center gap-6">
                 <ScoreRing value={qualityReport.overallScore} size={120} sublabel="overall" />
                 <div className="space-y-2">
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-text-secondary">
                     Requirement Coverage{" "}
-                    <span className="font-mono text-zinc-100">{qualityReport.requirementCoverage}%</span>
+                    <span className="font-mono text-text-primary">{qualityReport.requirementCoverage}%</span>
                   </p>
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-text-secondary">
                     Test Coverage{" "}
-                    <span className="font-mono text-zinc-100">{qualityReport.testCoverage}%</span>
+                    <span className="font-mono text-text-primary">{qualityReport.testCoverage}%</span>
                   </p>
-                  <p className="text-sm text-zinc-300">
+                  <p className="text-sm text-text-secondary">
                     AI Confidence{" "}
-                    <span className="font-mono text-zinc-100">{qualityReport.aiConfidence}%</span>
+                    <span className="font-mono text-text-primary">{qualityReport.aiConfidence}%</span>
                   </p>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">
+              <p className="text-sm text-text-secondary">
                 Complete the pipeline to compute a quality score.
               </p>
             )}
           </Card>
           <Card className="p-5">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
               Review Status
             </p>
             {total > 0 ? (
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg border border-emerald-400/20 bg-emerald-500/5 p-3">
-                  <p className="font-mono text-xl font-bold text-emerald-300">{approved}</p>
-                  <p className="text-xs text-zinc-500">Approved</p>
+                  <p className="font-mono text-xl font-bold text-emerald-400">{approved}</p>
+                  <p className="text-xs text-text-muted">Approved</p>
                 </div>
                 <div className="rounded-lg border border-amber-400/20 bg-amber-500/5 p-3">
-                  <p className="font-mono text-xl font-bold text-amber-300">{pending}</p>
-                  <p className="text-xs text-zinc-500">Pending</p>
+                  <p className="font-mono text-xl font-bold text-amber-400">{pending}</p>
+                  <p className="text-xs text-text-muted">Pending</p>
                 </div>
                 <div className="rounded-lg border border-red-400/20 bg-red-500/5 p-3">
-                  <p className="font-mono text-xl font-bold text-red-300">{rejected}</p>
-                  <p className="text-xs text-zinc-500">Rejected</p>
+                  <p className="font-mono text-xl font-bold text-red-400">{rejected}</p>
+                  <p className="text-xs text-text-muted">Rejected</p>
                 </div>
               </div>
             ) : (

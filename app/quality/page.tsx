@@ -14,10 +14,10 @@ function MetricBar({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <span className="text-sm text-zinc-300">{label}</span>
-        <span className="font-mono text-sm text-zinc-100">{Math.round(value)}%</span>
+        <span className="text-sm text-text-secondary">{label}</span>
+        <span className="font-mono text-sm text-text-primary">{Math.round(value)}%</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+      <div className="h-2 overflow-hidden rounded-full bg-surface-elevated">
         <div className={"h-full rounded-full " + tone} style={{ width: `${Math.max(0, Math.min(100, value))}%` }} />
       </div>
     </div>
@@ -36,8 +36,8 @@ export default function QualityPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <h2 className="text-2xl font-bold tracking-tight text-white">Quality & Traceability</h2>
-        <p className="mt-1 text-sm text-zinc-400">
+        <h2 className="text-2xl font-bold tracking-tight text-text-primary">Quality &amp; Traceability</h2>
+        <p className="mt-1 text-sm text-text-secondary">
           A deterministic quality report computed from the live pipeline state.
         </p>
 
@@ -49,7 +49,7 @@ export default function QualityPage() {
               action={
                 <a
                   href="/requirements"
-                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
                 >
                   Go to Requirements
                 </a>
@@ -61,7 +61,7 @@ export default function QualityPage() {
             {/* Hero: pipeline flow */}
             <div className="mt-6">
               <Card className="p-5">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Pipeline Flow
                 </p>
                 <PipelineFlow stages={stages} />
@@ -73,7 +73,7 @@ export default function QualityPage() {
               <Card className="p-6">
                 <div className="flex flex-col items-center">
                   <ScoreRing value={qualityReport.overallScore} size={140} sublabel="overall" />
-                  <p className="mt-3 text-sm font-medium text-zinc-300">Overall Quality</p>
+                  <p className="mt-3 text-sm font-medium text-text-secondary">Overall Quality</p>
                 </div>
               </Card>
               <Card className="p-6">
@@ -99,16 +99,16 @@ export default function QualityPage() {
             </div>
 
             {/* Traceability table */}
-            <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06]">
-              <div className="border-b border-white/[0.06] bg-zinc-900/60 px-4 py-3">
-                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="mt-6 overflow-hidden rounded-xl border border-border">
+              <div className="border-b border-border bg-surface px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
                   Traceability Matrix
                 </p>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[640px] text-left text-sm">
                   <thead>
-                    <tr className="border-b border-white/[0.06] bg-zinc-900/40 text-xs uppercase tracking-wider text-zinc-500">
+                    <tr className="border-b border-border bg-surface text-xs uppercase tracking-wider text-text-muted">
                       <th className="px-4 py-3 font-medium">Requirement</th>
                       <th className="px-4 py-3 font-medium">Test Case</th>
                       <th className="px-4 py-3 font-medium">Source</th>
@@ -118,24 +118,24 @@ export default function QualityPage() {
                   </thead>
                   <tbody>
                     {testCases.map((tc) => (
-                      <tr key={tc.id} className="border-b border-white/[0.04] bg-zinc-950/40">
-                        <td className="px-4 py-3 font-mono text-xs text-zinc-500">{requirement?.id ?? "—"}</td>
+                      <tr key={tc.id} className="border-b border-border/60 bg-bg/40">
+                        <td className="px-4 py-3 font-mono text-xs text-text-muted">{requirement?.id ?? "—"}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium text-zinc-100">{tc.title}</div>
-                          <div className="font-mono text-[11px] text-zinc-600">{tc.id}</div>
+                          <div className="font-medium text-text-primary">{tc.title}</div>
+                          <div className="font-mono text-[11px] text-text-muted">{tc.id}</div>
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-zinc-400">{tc.source}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-text-secondary">{tc.source}</td>
                         <td className="px-4 py-3">
                           <span
                             className={
                               "rounded-md border px-2 py-0.5 font-mono text-[11px] " +
                               (tc.reviewStatus === "approved"
-                                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+                                ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-400"
                                 : tc.reviewStatus === "rejected"
-                                  ? "border-red-400/20 bg-red-500/10 text-red-300"
+                                  ? "border-red-400/20 bg-red-500/10 text-red-400"
                                   : tc.reviewStatus === "modified"
-                                    ? "border-sky-400/20 bg-sky-500/10 text-sky-300"
-                                    : "border-amber-400/20 bg-amber-500/10 text-amber-300")
+                                    ? "border-sky-400/20 bg-sky-500/10 text-sky-400"
+                                    : "border-amber-400/20 bg-amber-500/10 text-amber-400")
                             }
                           >
                             {tc.reviewStatus.toUpperCase()}
@@ -143,9 +143,9 @@ export default function QualityPage() {
                         </td>
                         <td className="px-4 py-3 font-mono text-xs">
                           {automationArtifacts.some((a) => a.testCaseId === tc.id) ? (
-                            <span className="text-emerald-300">✓ generated</span>
+                            <span className="text-emerald-400">✓ generated</span>
                           ) : (
-                            <span className="text-zinc-600">—</span>
+                            <span className="text-text-muted">—</span>
                           )}
                         </td>
                       </tr>

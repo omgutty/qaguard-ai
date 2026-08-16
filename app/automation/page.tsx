@@ -46,8 +46,8 @@ export default function AutomationPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">Automation</h2>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">Automation</h2>
+            <p className="mt-1 text-sm text-text-secondary">
               Playwright TypeScript generated only for approved test cases.
             </p>
           </div>
@@ -55,7 +55,7 @@ export default function AutomationPage() {
             type="button"
             onClick={handleGenerate}
             disabled={candidates.length === 0 || generating}
-            className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {generating ? "Generating..." : `Generate Playwright (${candidates.length})`}
           </button>
@@ -80,7 +80,7 @@ export default function AutomationPage() {
               action={
                 <a
                   href="/requirements"
-                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
                 >
                   Go to Requirements
                 </a>
@@ -95,7 +95,7 @@ export default function AutomationPage() {
               action={
                 <a
                   href="/review"
-                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
                 >
                   Go to Review
                 </a>
@@ -107,7 +107,7 @@ export default function AutomationPage() {
             {/* Artifact list */}
             <div className="space-y-3">
               {automationArtifacts.length === 0 && (
-                <Card className="p-4 text-sm text-zinc-400">
+                <Card className="p-4 text-sm text-text-secondary">
                   No artifacts yet — click &quot;Generate Playwright&quot; to create them.
                 </Card>
               )}
@@ -121,18 +121,18 @@ export default function AutomationPage() {
                     className={
                       "w-full rounded-lg border p-3 text-left transition-colors " +
                       (selected?.testCaseId === artifact.testCaseId
-                        ? "border-indigo-400/40 bg-indigo-500/5"
-                        : "border-white/[0.06] bg-zinc-900/50 hover:border-white/15")
+                        ? "border-accent/40 bg-accent/5"
+                        : "border-border bg-surface hover:border-text-muted")
                     }
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-[11px] text-zinc-500">{artifact.fileName}</span>
+                      <span className="font-mono text-[11px] text-text-muted">{artifact.fileName}</span>
                       <ReviewBadge status={tc?.reviewStatus ?? "pending"} />
                     </div>
-                    <p className="mt-1 text-sm font-medium text-zinc-100">{tc?.title}</p>
+                    <p className="mt-1 text-sm font-medium text-text-primary">{tc?.title}</p>
                     <div className="mt-2 flex items-center gap-2">
                       {tc && <TypeBadge type={tc.type} />}
-                      <span className="font-mono text-[10px] text-zinc-600">
+                      <span className="font-mono text-[10px] text-text-muted">
                         {artifact.framework} · {artifact.language}
                       </span>
                     </div>
@@ -146,13 +146,13 @@ export default function AutomationPage() {
               {selected ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-xs text-zinc-500">
+                    <span className="font-mono text-xs text-text-muted">
                       {selected.testCaseId} · generated {new Date(selected.generatedAt).toLocaleString()}
                     </span>
                     <button
                       type="button"
                       onClick={() => download(selected)}
-                      className="rounded-md border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white"
+                      className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
                     >
                       Download .ts
                     </button>

@@ -27,8 +27,8 @@ export default function TestCasesPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">Test Cases</h2>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">Test Cases</h2>
+            <p className="mt-1 text-sm text-text-secondary">
               {testCases.length} generated · {totalSteps} steps · {testData.length} datasets
             </p>
           </div>
@@ -42,7 +42,7 @@ export default function TestCasesPage() {
               action={
                 <a
                   href="/requirements"
-                  className="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-400"
+                  className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
                 >
                   Go to Requirements
                 </a>
@@ -50,11 +50,11 @@ export default function TestCasesPage() {
             />
           </div>
         ) : (
-          <div className="mt-6 overflow-hidden rounded-xl border border-white/[0.06]">
+          <div className="mt-6 overflow-hidden rounded-xl border border-border">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[720px] text-left text-sm">
                 <thead>
-                  <tr className="border-b border-white/[0.06] bg-zinc-900/60 text-xs uppercase tracking-wider text-zinc-500">
+                  <tr className="border-b border-border bg-surface text-xs uppercase tracking-wider text-text-muted">
                     <th className="px-4 py-3 font-medium">ID</th>
                     <th className="px-4 py-3 font-medium">Title</th>
                     <th className="px-4 py-3 font-medium">Type</th>
@@ -103,10 +103,10 @@ function TestCaseRow({
 }) {
   return (
     <>
-      <tr className="border-b border-white/[0.04] bg-zinc-950/40 transition-colors hover:bg-zinc-900/40">
-        <td className="px-4 py-3 font-mono text-xs text-zinc-500">{tc.id}</td>
+      <tr className="border-b border-border/60 bg-bg/40 transition-colors hover:bg-surface">
+        <td className="px-4 py-3 font-mono text-xs text-text-muted">{tc.id}</td>
         <td className="px-4 py-3">
-          <button type="button" onClick={onToggle} className="text-left font-medium text-zinc-100 hover:text-indigo-300">
+          <button type="button" onClick={onToggle} className="text-left font-medium text-text-primary hover:text-accent">
             {tc.title}
           </button>
         </td>
@@ -114,7 +114,7 @@ function TestCaseRow({
           <select
             value={tc.type}
             onChange={(e) => onChangeType(e.target.value as TestCaseType)}
-            className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 focus:border-indigo-400/50 focus:outline-none"
+            className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-secondary focus:border-accent/50 focus:outline-none"
           >
             {(["positive", "negative", "boundary", "validation", "security", "regression"] as TestCaseType[]).map((t) => (
               <option key={t} value={t}>
@@ -127,7 +127,7 @@ function TestCaseRow({
           <select
             value={tc.priority}
             onChange={(e) => onChangePriority(e.target.value as TestPriority)}
-            className="rounded-md border border-white/10 bg-zinc-900 px-2 py-1 text-xs text-zinc-300 focus:border-indigo-400/50 focus:outline-none"
+            className="rounded-md border border-border bg-surface px-2 py-1 text-xs text-text-secondary focus:border-accent/50 focus:outline-none"
           >
             {(["low", "medium", "high", "critical"] as TestPriority[]).map((p) => (
               <option key={p} value={p}>
@@ -144,35 +144,35 @@ function TestCaseRow({
         </td>
         <td className="px-4 py-3">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={onToggle} className="rounded-md border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:bg-white/5 hover:text-white">
+            <button type="button" onClick={onToggle} className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:bg-surface-elevated hover:text-text-primary">
               {expanded ? "Hide" : "Steps"}
             </button>
-            <button type="button" onClick={onDelete} className="rounded-md border border-white/10 px-2 py-1 text-xs text-zinc-400 hover:border-red-400/40 hover:text-red-300">
+            <button type="button" onClick={onDelete} className="rounded-md border border-border px-2 py-1 text-xs text-text-secondary hover:border-error/40 hover:text-error">
               Reject
             </button>
           </div>
         </td>
       </tr>
       {expanded && (
-        <tr className="border-b border-white/[0.04] bg-zinc-900/40">
+        <tr className="border-b border-border/60 bg-surface">
           <td colSpan={7} className="px-4 py-4">
-            <p className="mb-2 text-sm text-zinc-400">{tc.description}</p>
+            <p className="mb-2 text-sm text-text-secondary">{tc.description}</p>
             {tc.preconditions.length > 0 && (
-              <p className="mb-2 text-xs text-zinc-500">
+              <p className="mb-2 text-xs text-text-muted">
                 Preconditions: {tc.preconditions.join("; ")}
               </p>
             )}
             <div className="space-y-2">
               {tc.steps.map((step) => (
-                <div key={step.stepNumber} className="grid grid-cols-[24px_1fr_1fr] gap-3 rounded-lg border border-white/[0.06] bg-zinc-950/50 px-3 py-2 text-sm">
-                  <span className="font-mono text-xs text-zinc-600">{step.stepNumber}</span>
+                <div key={step.stepNumber} className="grid grid-cols-[24px_1fr_1fr] gap-3 rounded-lg border border-border bg-bg px-3 py-2 text-sm">
+                  <span className="font-mono text-xs text-text-muted">{step.stepNumber}</span>
                   <div>
-                    <p className="text-xs font-medium text-zinc-400">Action</p>
-                    <p className="text-zinc-200">{step.action}</p>
+                    <p className="text-xs font-medium text-text-muted">Action</p>
+                    <p className="text-text-secondary">{step.action}</p>
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-zinc-400">Expected</p>
-                    <p className="text-zinc-200">{step.expectedResult}</p>
+                    <p className="text-xs font-medium text-text-muted">Expected</p>
+                    <p className="text-text-secondary">{step.expectedResult}</p>
                   </div>
                 </div>
               ))}

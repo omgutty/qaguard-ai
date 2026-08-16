@@ -15,7 +15,7 @@ export function StatCard({
   className?: string;
 }) {
   const tones: Record<string, string> = {
-    zinc: "text-zinc-100",
+    zinc: "text-text-primary",
     emerald: "text-emerald-300",
     amber: "text-amber-300",
     red: "text-red-300",
@@ -25,13 +25,13 @@ export function StatCard({
   return (
     <div
       className={cx(
-        "rounded-xl border border-white/[0.06] bg-zinc-900/60 p-4 backdrop-blur-sm",
+        "rounded-xl border border-border bg-surface p-4",
         className
       )}
     >
-      <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wider text-text-muted">{label}</p>
       <p className={cx("mt-1.5 font-mono text-2xl font-bold tabular-nums", tones[tone])}>{value}</p>
-      {sub && <p className="mt-1 text-xs text-zinc-500">{sub}</p>}
+      {sub && <p className="mt-1 text-xs text-text-muted">{sub}</p>}
     </div>
   );
 }

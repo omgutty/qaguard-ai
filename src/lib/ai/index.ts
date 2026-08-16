@@ -1,4 +1,25 @@
-// AI barrel — Phase 2 swaps these mock implementations for real LLM calls
-// without changing the public agent function signatures.
+// AI provider barrel — SERVER-ONLY.
+//
+// Importing this module from any client component will throw at build time.
+// The Next.js server-only package is intentionally used to enforce the
+// server/client boundary for the OpenRouter provider.
 
-export {};
+import "server-only";
+
+export {
+  OpenRouterError,
+  generateStructuredResponse,
+  getOpenRouterConfig,
+  getResponseText,
+  parseJsonResponse,
+  type OpenRouterConfig,
+  type OpenRouterErrorCode,
+  type GenerateStructuredOptions,
+} from "@/lib/ai/openrouter";
+
+export type {
+  OpenRouterChatMessage,
+  OpenRouterChatResponse,
+  OpenRouterRole,
+  OpenRouterUsage,
+} from "@/lib/ai/types";

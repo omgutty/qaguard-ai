@@ -6,7 +6,6 @@
 import { useState } from "react";
 
 function highlight(code: string): React.ReactNode[] {
-  // Tokenize: comments, strings, then the rest.
   const nodes: React.ReactNode[] = [];
   const regex = /(\/\/[^\n]*|"[^"\n]*"|'[^'\n]*')/g;
   let last = 0;
@@ -19,7 +18,7 @@ function highlight(code: string): React.ReactNode[] {
     const token = match[0];
     if (token.startsWith("//")) {
       nodes.push(
-        <span key={key++} className="text-zinc-500">
+        <span key={key++} className="text-text-muted">
           {token}
         </span>
       );
@@ -61,8 +60,8 @@ export function CodeBlock({
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-white/[0.06] bg-zinc-950">
-      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2">
+    <div className="overflow-hidden rounded-xl border border-border bg-code-bg">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2">
         <div className="flex items-center gap-2">
           <span className="flex gap-1.5">
             <span className="h-2.5 w-2.5 rounded-full bg-red-400/60" />
@@ -70,18 +69,18 @@ export function CodeBlock({
             <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/60" />
           </span>
           {fileName && (
-            <span className="ml-2 font-mono text-xs text-zinc-400">{fileName}</span>
+            <span className="ml-2 font-mono text-xs text-text-muted">{fileName}</span>
           )}
         </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="rounded-md border border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/5 hover:text-white"
+          className="rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary"
         >
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="overflow-x-auto p-4 font-mono text-[12.5px] leading-relaxed text-zinc-200">
+      <pre className="overflow-x-auto p-4 font-mono text-[12.5px] leading-relaxed text-text-primary">
         <code>{highlight(code)}</code>
       </pre>
     </div>

@@ -9,7 +9,7 @@ const toneClasses: Record<Tone, string> = {
   red: "bg-red-500/10 text-red-300 border-red-400/20",
   sky: "bg-sky-500/10 text-sky-300 border-sky-400/20",
   indigo: "bg-indigo-500/10 text-indigo-300 border-indigo-400/20",
-  zinc: "bg-zinc-500/10 text-zinc-300 border-zinc-400/20",
+  zinc: "bg-text-muted/10 text-text-secondary border-border",
 };
 
 export function Badge({

@@ -58,8 +58,8 @@ export default function ReviewPage() {
       <div className="mx-auto max-w-6xl px-6 py-8">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-white">Human Review</h2>
-            <p className="mt-1 text-sm text-zinc-400">
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">Human Review</h2>
+            <p className="mt-1 text-sm text-text-secondary">
               The governance gate — only approved test cases reach automation.
             </p>
           </div>
@@ -67,21 +67,21 @@ export default function ReviewPage() {
 
         {/* Summary strip */}
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-          <div className="rounded-xl border border-white/[0.06] bg-zinc-900/60 p-4">
-            <p className="text-xs uppercase tracking-wider text-zinc-500">Total Generated</p>
-            <p className="mt-1 font-mono text-2xl font-bold text-zinc-100">{total}</p>
+          <div className="rounded-xl border border-border bg-surface p-4">
+            <p className="text-xs uppercase tracking-wider text-text-muted">Total Generated</p>
+            <p className="mt-1 font-mono text-2xl font-bold text-text-primary">{total}</p>
           </div>
           <div className="rounded-xl border border-emerald-400/20 bg-emerald-500/5 p-4">
-            <p className="text-xs uppercase tracking-wider text-emerald-300">Approved</p>
-            <p className="mt-1 font-mono text-2xl font-bold text-emerald-300">{approved}</p>
+            <p className="text-xs uppercase tracking-wider text-emerald-400">Approved</p>
+            <p className="mt-1 font-mono text-2xl font-bold text-emerald-400">{approved}</p>
           </div>
           <div className="rounded-xl border border-red-400/20 bg-red-500/5 p-4">
-            <p className="text-xs uppercase tracking-wider text-red-300">Rejected</p>
-            <p className="mt-1 font-mono text-2xl font-bold text-red-300">{rejected}</p>
+            <p className="text-xs uppercase tracking-wider text-red-400">Rejected</p>
+            <p className="mt-1 font-mono text-2xl font-bold text-red-400">{rejected}</p>
           </div>
           <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-4">
-            <p className="text-xs uppercase tracking-wider text-amber-300">Pending</p>
-            <p className="mt-1 font-mono text-2xl font-bold text-amber-300">{pending}</p>
+            <p className="text-xs uppercase tracking-wider text-amber-400">Pending</p>
+            <p className="mt-1 font-mono text-2xl font-bold text-amber-400">{pending}</p>
           </div>
         </div>
 

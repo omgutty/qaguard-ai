@@ -31,6 +31,7 @@ Requirement Analysis → Test Generation → Test Data → Human Review
 - **Human Review** — the governance gate: approve / reject / edit each test case. Unapproved cases cannot be automated
 - **Automation** — Playwright TypeScript generated only for approved test cases, with copy + download
 - **Quality & Traceability Dashboard** — overall quality score, coverage metrics, AI confidence, and a live pipeline flow with counts at every stage
+- **Dark/Light theme** — enterprise dark theme by default with a global light-mode toggle (persisted via localStorage, no page reload)
 - **Dark, data-dense UI** — score rings, monospace IDs, status color grammar, first-class empty/error states
 - **Session persistence** — shared client state survives navigation (no database in Phase 1)
 
@@ -62,9 +63,9 @@ src/
 │   ├── review/              #   Human review / governance gate
 │   ├── automation/          #   Playwright generation
 │   └── quality/             #   Quality & traceability dashboard
-├── components/              # Shared UI (Sidebar, Header, ui/*)
+├── components/              # Shared UI (Sidebar, Header, ui/*, ThemeProvider)
 ├── lib/
-│   ├── ai/                  # AI integration layer (Phase 2)
+│   ├── ai/                  # OpenRouter provider (server-only, Phase 2 boundary)
 │   ├── state/               # WorkflowProvider (client state)
 │   ├── utils/               # Traceability + scoring helpers
 │   └── validation/          # Input validation
@@ -82,8 +83,9 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
-npm run lint    # ESLint
-npm run build   # Production build + typecheck
+npm run lint       # ESLint
+npm run build      # Production build + typecheck
+npm run verify:ai  # Verify the OpenRouter provider config/errors (no API call)
 ```
 
 ## Current Phase
@@ -105,6 +107,16 @@ quality-agent.ts       → generateQualityReport()
 ```
 
 Phase 2 will add an LLM provider behind `src/lib/ai/` with the same contract. No Langflow, no n8n, no MCP, no RAG, no database in Phase 1.
+
+## OpenRouter Provider (Phase 2 foundation)
+
+A server-only provider abstraction exists at `src/lib/ai/`:
+
+- `openrouter.ts` — `generateStructuredResponse()` calling the OpenRouter chat completions API with `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (default `deepseek/deepseek-v4-flash`), structured JSON support, and typed error handling
+- `types.ts` — OpenRouter request/response types
+- The barrel (`index.ts`) imports `server-only`, so importing it into any client component fails the build
+
+The API key is never exposed to the browser. Copy `.env.local.example` to `.env.local` and add your key when ready. The current agents remain deterministic mocks until Phase 2 Step 2 wires them to this provider.
 
 ## Deployment
 

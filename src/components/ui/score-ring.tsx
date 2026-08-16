@@ -64,7 +64,7 @@ export function ScoreRing({
             r={r}
             fill="none"
             strokeWidth={stroke}
-            className="stroke-zinc-800"
+            className="stroke-border"
           />
           <circle
             cx={size / 2}
@@ -82,10 +82,10 @@ export function ScoreRing({
           <span className={cx("font-mono text-2xl font-bold tabular-nums", scoreTone(clamped))}>
             {display}
           </span>
-          {sublabel && <span className="text-[10px] uppercase tracking-wider text-zinc-500">{sublabel}</span>}
+          {sublabel && <span className="text-[10px] uppercase tracking-wider text-text-muted">{sublabel}</span>}
         </div>
       </div>
-      {label && <span className="text-sm text-zinc-300">{label}</span>}
+      {label && <span className="text-sm text-text-secondary">{label}</span>}
     </div>
   );
 }
