@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useWorkflow } from "@/lib/state/workflow-provider";
 import { buildWorkflowStages } from "@/lib/utils/traceability";
@@ -7,7 +8,9 @@ import { PipelineFlow } from "@/components/ui/pipeline-flow";
 import { ScoreRing } from "@/components/ui/score-ring";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { Card, SectionTitle } from "@/components/ui/primitives";
+import type { QualityReport } from "@/types/qa";
 
 function MetricBar({ label, value }: { label: string; value: number }) {
   const tone = value >= 80 ? "bg-emerald-400" : value >= 60 ? "bg-amber-400" : "bg-red-400";
@@ -25,35 +28,87 @@ function MetricBar({ label, value }: { label: string; value: number }) {
 }
 
 export default function QualityPage() {
-  const { state } = useWorkflow();
-  const { requirement, testCases, testData, automationArtifacts, qualityReport } = state;
+  const { state, setQualityReport } = useWorkflow();
+  const { requirement, analysis, testCases, testData, automationArtifacts, qualityReport } =
+    state;
 
   const stages = buildWorkflowStages(requirement, testCases, testData, automationArtifacts);
   const pendingCount = qualityReport
     ? testCases.length - qualityReport.approvedTests - qualityReport.rejectedTests
     : 0;
 
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleGenerate = async () => {
+    if (!requirement || !analysis) {
+      setError("Run a requirement analysis first.");
+      return;
+    }
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/quality/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          requirement,
+          analysis,
+          testCases,
+          testData,
+          artifacts: automationArtifacts,
+        }),
+      });
+      const data = (await res.json()) as { report?: QualityReport; error?: string };
+      if (!res.ok) {
+        setError(data.error ?? "Unable to generate the quality report.");
+        return;
+      }
+      if (data.report) setQualityReport(data.report);
+    } catch {
+      setError("AI service is temporarily unavailable.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <AppShell>
       <div className="mx-auto max-w-6xl px-6 py-8">
-        <h2 className="text-2xl font-bold tracking-tight text-text-primary">Quality &amp; Traceability</h2>
-        <p className="mt-1 text-sm text-text-secondary">
-          A deterministic quality report computed from the live pipeline state.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight text-text-primary">Quality &amp; Traceability</h2>
+            <p className="mt-1 text-sm text-text-secondary">
+              AI-powered quality assessment of the actual pipeline artifacts.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleGenerate}
+            disabled={generating}
+            className="inline-flex items-center gap-2 rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {generating && (
+              <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            )}
+            {generating ? "Generating quality report..." : "Generate Quality Report"}
+          </button>
+        </div>
+
+        {error && (
+          <div role="alert" className="mt-4 rounded-lg border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
 
         {!qualityReport ? (
           <div className="mt-6">
             <EmptyState
               title="No quality report yet"
-              description="Run a requirement analysis to compute the quality dashboard."
-              action={
-                <a
-                  href="/requirements"
-                  className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent/90"
-                >
-                  Go to Requirements
-                </a>
-              }
+              description="Generate a quality report to see an AI assessment of coverage, traceability, and risks."
             />
           </div>
         ) : (
@@ -154,6 +209,57 @@ export default function QualityPage() {
                 </table>
               </div>
             </div>
+
+            {/* AI Findings */}
+            {qualityReport.findings.length > 0 && (
+              <div className="mt-6">
+                <Card className="p-6">
+                  <div className="flex items-center gap-2">
+                    <SectionTitle>AI Findings</SectionTitle>
+                    <span className="rounded-full border border-ai/30 bg-ai/10 px-2.5 py-0.5 font-mono text-[10px] font-medium text-ai">
+                      AI
+                    </span>
+                  </div>
+                  <div className="mt-4 space-y-3">
+                    {qualityReport.findings.map((finding) => (
+                      <div
+                        key={finding.id}
+                        className="rounded-lg border border-border bg-bg p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge
+                            tone={
+                              finding.severity === "critical" || finding.severity === "high"
+                                ? "red"
+                                : finding.severity === "medium"
+                                  ? "amber"
+                                  : finding.severity === "low"
+                                    ? "sky"
+                                    : "zinc"
+                            }
+                          >
+                            {finding.severity.toUpperCase()}
+                          </Badge>
+                          <Badge tone="indigo">
+                            {finding.category.replace(/_/g, " ").toUpperCase()}
+                          </Badge>
+                          <span className="font-mono text-[11px] text-text-muted">
+                            {finding.id}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-text-secondary">{finding.description}</p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          <span className="font-medium text-text-secondary">Evidence:</span> {finding.evidence}
+                        </p>
+                        <p className="mt-1 text-xs text-text-muted">
+                          <span className="font-medium text-text-secondary">Recommendation:</span> {finding.recommendation}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            )}
           </>
         )}
       </div>

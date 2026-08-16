@@ -154,6 +154,7 @@ export interface TestData {
 
 export interface AutomationArtifact {
   testCaseId: string;
+  requirementId: string;
   framework: AutomationFramework;
   language: AutomationLanguage;
   fileName: string;
@@ -165,7 +166,32 @@ export interface AutomationArtifact {
 // Quality
 // ---------------------------------------------------------------------------
 
+export type QualityFindingSeverity = "critical" | "high" | "medium" | "low" | "info";
+
+export type QualityFindingCategory =
+  | "missing_coverage"
+  | "negative_coverage"
+  | "boundary_coverage"
+  | "ambiguity"
+  | "risk_without_test"
+  | "missing_test_data"
+  | "traceability_gap"
+  | "unreviewed_test"
+  | "weak_test"
+  | "duplicate_test";
+
+export interface QualityFinding {
+  id: string;
+  severity: QualityFindingSeverity;
+  category: QualityFindingCategory;
+  description: string;
+  /** Evidence / source in the pipeline this finding is based on. */
+  evidence: string;
+  recommendation: string;
+}
+
 export interface QualityReport {
+  requirementId: string;
   overallScore: number;
   requirementCoverage: number;
   testCoverage: number;
@@ -176,6 +202,8 @@ export interface QualityReport {
   aiDerivedTests: number;
   approvedTests: number;
   rejectedTests: number;
+  /** AI-generated findings (empty for deterministic mock output). */
+  findings: QualityFinding[];
 }
 
 export type WorkflowStageKey =

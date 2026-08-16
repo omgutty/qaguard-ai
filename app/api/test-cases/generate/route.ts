@@ -70,6 +70,7 @@ export async function POST(request: Request) {
       requirement: req,
       analysis: ana,
       testCases,
+      testData,
       artifacts: [],
     });
 

@@ -1,108 +1,253 @@
-// Automation Agent — generates Playwright TypeScript code text (Phase 1).
-// Phase 2: swap internals for an LLM call, keep generateAutomation() signature.
-// Note: generates code as a string; Playwright is NOT installed or executed.
+// Automation Agent — real LLM implementation (Phase 2 Step 6).
+// Calls the existing OpenRouter provider (src/lib/ai) from the server only.
+// Generates Playwright TypeScript code text; Playwright is NOT installed/executed.
+// The deterministic mock is preserved in automation-agent.mock.ts.
 
+import {
+  generateStructuredResponse,
+  getResponseText,
+  OpenRouterError,
+  parseJsonResponse,
+  type OpenRouterChatMessage,
+} from "@/lib/ai";
+import { validateAutomationArtifact } from "@/lib/validation/automation";
 import type {
   AutomationArtifact,
+  Requirement,
   TestCase,
   TestData,
 } from "@/types/qa";
 
-/** Escape a string for embedding in a TS/JS string literal. */
-function tsString(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+// ---------------------------------------------------------------------------
+// Prompt
+// ---------------------------------------------------------------------------
+
+export const AUTOMATION_PROMPT_VERSION = "1.0";
+
+function buildSystemPrompt(): string {
+  return [
+    "You are a senior Playwright automation engineer.",
+    "",
+    "Your job is to generate a single, executable Playwright TypeScript test for a given APPROVED test case, using the associated test data.",
+    "",
+    "GENERATION RULES:",
+    "- Use TypeScript with Playwright.",
+    "- Use web-first assertions (expect(...).toBeVisible() / toHaveValue() / etc.).",
+    "- Use locator-based interactions (getByRole, getByLabel, getByPlaceholder, getByText).",
+    "- Use a readable test name.",
+    "- Deterministic structure — no arbitrary sleeps (no waitForTimeout unless genuinely required).",
+    "- No hardcoded production credentials. Use the test data values supplied, or clearly marked placeholders like <USER_EMAIL>.",
+    "- No fabricated URLs unless the test case or requirement supplies one. If no URL is known, use \"<APP_URL>\" as an obvious placeholder.",
+    "- No invented application behavior.",
+    "- No invented selectors when selectors are not available — mark them clearly as placeholders, e.g. // TODO: replace with real selector.",
+    "",
+    "OUTPUT FORMAT (STRICT):",
+    "Return ONLY a JSON object conforming EXACTLY to this shape:",
+    `{
+      "testCaseId": "<the exact test case id supplied>",
+      "requirementId": "<the exact requirement id supplied>",
+      "framework": "playwright",
+      "language": "typescript",
+      "fileName": "my-test.spec.ts",
+      "code": "import { test, expect } from \\"@playwright/test\\";\\n\\ntest(\\"...\\", async ({ page }) => {\\n  // ...\\n});",
+      "generatedAt": "<ISO timestamp>"
+    }`,
+    "Rules:",
+    "- framework MUST be \"playwright\", language MUST be \"typescript\".",
+    "- fileName should be kebab-case ending in .spec.ts.",
+    "- code must be the complete Playwright TypeScript source as a single string.",
+    "- generatedAt must be the current ISO timestamp.",
+    "- Do not include fields outside this shape.",
+  ].join("\n");
 }
 
-function sanitizeFileName(title: string): string {
-  return title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "test-case";
-}
-
-function actionForStep(step: { action: string; testData: string }): string {
-  const action = step.action.toLowerCase();
-  if (action.includes("submit") || action.includes("confirm")) {
-    return `await page.getByRole("button", { name: /submit|confirm|save/i }).first().click();`;
-  }
-  if (action.includes("click") || action.includes("open") || action.includes("navigate")) {
-    return `await page.getByRole("link", { name: /open|begin|new|view/i }).first().click();`;
-  }
-  if (action.includes("enter") || action.includes("fill") || action.includes("input")) {
-    return `await page.getByRole("textbox").first().fill("${tsString(
-      step.testData
-    )}");`;
-  }
-  return `await page.getByRole("textbox").first().fill("${tsString(step.testData)}");`;
-}
-
-function assertionForTestCase(testCase: TestCase): string {
-  switch (testCase.type) {
-    case "negative":
-    case "validation":
-      return `await expect(page.getByText(/error|invalid|required/i).first()).toBeVisible();`;
-    case "security":
-      return `await expect(page.getByText(/403|denied|unauthorized/i).first()).toBeVisible();`;
-    case "boundary":
-      return `await expect(page.getByText(/must be|between|limit/i).first()).toBeVisible();`;
-    default:
-      return `await expect(page.getByRole("status").first()).toBeVisible();`;
-  }
-}
-
-export function generateAutomation(
+function buildUserMessage(
   testCase: TestCase,
-  testData: TestData
-): AutomationArtifact {
-  const stepCode = testCase.steps
-    .map((step) => {
-      const indent = "  ";
-      return `${indent}// Step ${step.stepNumber}: ${step.action}\n${indent}${actionForStep(
-        step
-      )}`;
-    })
-    .join("\n");
-
-  const fileName = `${sanitizeFileName(testCase.title)}.spec.ts`;
-  const code = `import { test, expect } from "@playwright/test";
-
-test("${tsString(testCase.title)}", async ({ page }) => {
-  // Precondition: ${testCase.preconditions[0] ?? "none"}
-  await page.goto("/");
-  await page.getByRole("link", { name: "Sign in" }).click();
-  await page.getByLabel("Email").fill("${tsString(
-    testData.fields.find((f) => f.type === "email")?.value ?? "user@example.com"
-  )}");
-  await page.getByLabel("Password").fill("${tsString(
-    testData.fields.find((f) => f.type === "password")?.value ?? "password"
-  )}");
-
-${stepCode}
-
-  ${assertionForTestCase(testCase)}
-});`;
-
-  return {
-    testCaseId: testCase.id,
-    framework: "playwright",
-    language: "typescript",
-    fileName,
-    code,
-    generatedAt: new Date().toISOString(),
-  };
+  testData: TestData,
+  requirement: Requirement | null
+): string {
+  return [
+    "Generate a Playwright TypeScript test for the following APPROVED test case.",
+    "",
+    "REQUIREMENT (context):",
+    requirement
+      ? JSON.stringify(
+          {
+            id: requirement.id,
+            title: requirement.title,
+            description: requirement.description,
+          },
+          null,
+          2
+        )
+      : "null",
+    "",
+    "TEST CASE:",
+    JSON.stringify(
+      {
+        id: testCase.id,
+        requirementId: testCase.requirementId,
+        title: testCase.title,
+        description: testCase.description,
+        type: testCase.type,
+        preconditions: testCase.preconditions,
+        steps: testCase.steps,
+        expectedResult: testCase.expectedResult,
+      },
+      null,
+      2
+    ),
+    "",
+    "TEST DATA (use these values; never invent different ones):",
+    JSON.stringify(
+      testData.fields.map((f) => ({
+        name: f.name,
+        value: f.value,
+        sensitive: f.sensitive,
+      })),
+      null,
+      2
+    ),
+    "",
+    `Set testCaseId exactly to: ${testCase.id}`,
+    `Set requirementId exactly to: ${testCase.requirementId}`,
+  ].join("\n");
 }
 
-/** Batch helper: generate artifacts for a set of approved test cases. */
-export function generateAutomationBatch(
-  approvedTestCases: TestCase[],
-  testData: TestData[]
-): AutomationArtifact[] {
-  return approvedTestCases
-    .map((tc) => {
-      const data = testData.find((td) => td.testCaseId === tc.id);
-      if (!data) return null;
-      return generateAutomation(tc, data);
-    })
-    .filter((a): a is AutomationArtifact => a !== null);
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+export type AutomationAgentErrorCode =
+  | "missing_api_key"
+  | "provider_error"
+  | "invalid_response"
+  | "empty_response";
+
+/** Controlled, user-safe error. Never serialize `cause` to the client. */
+export class AutomationAgentError extends Error {
+  code: AutomationAgentErrorCode;
+  userMessage: string;
+  cause?: Error;
+
+  constructor(
+    code: AutomationAgentErrorCode,
+    userMessage: string,
+    cause?: Error
+  ) {
+    super(userMessage);
+    this.name = "AutomationAgentError";
+    this.code = code;
+    this.userMessage = userMessage;
+    this.cause = cause;
+  }
+}
+
+function toAgentError(err: unknown): AutomationAgentError {
+  if (err instanceof AutomationAgentError) return err;
+  if (err instanceof OpenRouterError) {
+    switch (err.code) {
+      case "missing_api_key":
+      case "invalid_api_key":
+        return new AutomationAgentError(
+          "missing_api_key",
+          "AI service is temporarily unavailable.",
+          err
+        );
+      case "rate_limited":
+        return new AutomationAgentError(
+          "provider_error",
+          "AI service is busy. Please try again.",
+          err
+        );
+      case "invalid_json":
+      case "empty_response":
+        return new AutomationAgentError(
+          "invalid_response",
+          "AI returned an unexpected response. Please try again.",
+          err
+        );
+      default:
+        return new AutomationAgentError(
+          "provider_error",
+          "AI service is temporarily unavailable.",
+          err
+        );
+    }
+  }
+  return new AutomationAgentError(
+    "provider_error",
+    "Unable to generate automation. Please try again.",
+    err instanceof Error ? err : undefined
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Public API (server-side)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate a Playwright TypeScript artifact via the real LLM (OpenRouter).
+ * Server-side only — never import into client components.
+ * The caller must verify the test case is approved before calling.
+ * Throws AutomationAgentError with a safe userMessage on failure.
+ */
+export async function generateAutomation(args: {
+  testCase: TestCase;
+  testData: TestData;
+  requirement: Requirement | null;
+}): Promise<AutomationArtifact> {
+  const { testCase, testData, requirement } = args;
+
+  const messages: OpenRouterChatMessage[] = [
+    { role: "system", content: buildSystemPrompt() },
+    {
+      role: "user",
+      content: buildUserMessage(testCase, testData, requirement),
+    },
+  ];
+
+  try {
+    const response = await generateStructuredResponse(messages, {
+      json: true,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+
+    const text = getResponseText(response);
+    if (!text || !text.trim()) {
+      throw new OpenRouterError(
+        "OpenRouter returned an empty response.",
+        "empty_response"
+      );
+    }
+
+    const raw = parseJsonResponse<unknown>(response);
+    return validateAutomationArtifact(raw, {
+      testCaseId: testCase.id,
+      requirementId: testCase.requirementId,
+    });
+  } catch (err) {
+    throw toAgentError(err);
+  }
+}
+
+/**
+ * Batch helper: generate artifacts for approved test cases.
+ * Skips any test case that is not approved (governance gate).
+ */
+export async function generateAutomationBatch(args: {
+  approvedTestCases: TestCase[];
+  testData: TestData[];
+  requirement: Requirement | null;
+}): Promise<AutomationArtifact[]> {
+  const { approvedTestCases, testData, requirement } = args;
+  const results: AutomationArtifact[] = [];
+  for (const tc of approvedTestCases) {
+    if (tc.reviewStatus !== "approved") continue;
+    const data = testData.find((td) => td.testCaseId === tc.id);
+    if (!data) continue;
+    results.push(await generateAutomation({ testCase: tc, testData: data, requirement }));
+  }
+  return results;
 }

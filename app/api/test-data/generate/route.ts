@@ -81,6 +81,7 @@ export async function POST(request: Request) {
       requirement: req,
       analysis: ana,
       testCases: tcs,
+      testData,
       artifacts: [],
     });
 

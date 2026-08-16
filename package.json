@@ -10,7 +10,9 @@
     "verify:ai": "node --experimental-strip-types scripts/verify-ai.mts",
     "verify:agent": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-agent.mts",
     "verify:engine": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-engine.mts",
-    "verify:test-data": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-test-data.mts"
+    "verify:test-data": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-test-data.mts",
+    "verify:quality": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-quality.mts",
+    "verify:automation": "node --experimental-strip-types --experimental-loader ./scripts/resolve-alias.mjs scripts/verify-automation.mts"
   },
   "dependencies": {
     "next": "16.3.1",

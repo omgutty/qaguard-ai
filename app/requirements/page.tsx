@@ -38,6 +38,8 @@ export default function RequirementsPage() {
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generatingData, setGeneratingData] = useState(false);
+  const [loadingSample, setLoadingSample] = useState(false);
+  const [sampleError, setSampleError] = useState<string | null>(null);
 
   const { analysis } = state;
 
@@ -175,6 +177,57 @@ export default function RequirementsPage() {
     }
   };
 
+  // Parse the sample story markdown into the form fields (title, description,
+  // acceptance criteria). The story markdown is the source of truth; this
+  // parser is deliberately small and tolerant of the demo file's structure.
+  const parseSampleStory = (markdown: string): { title: string; description: string; criteria: string[] } => {
+    const clean = markdown.replace(/\r/g, "");
+    const titleMatch = clean.match(/## Title\s*\n([^\n]+)/);
+    const storyMatch = clean.match(/## User Story\s*\n([\s\S]*?)(?=\n## |\z)/);
+    const criteriaBlock = clean.match(/## Acceptance Criteria\s*\n([\s\S]*?)(?=\n## |\z)/);
+
+    const title = titleMatch?.[1]?.trim() ?? "";
+    const description =
+      storyMatch?.[1]
+        ?.replace(/\n+/g, " ")
+        .trim() ?? "";
+    const criteria: string[] = [];
+    if (criteriaBlock) {
+      const re = /###\s*AC-\d+[^\n]*\n([\s\S]*?)(?=\n###|\z)/g;
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(criteriaBlock[1])) !== null) {
+        const text = m[1]
+          .split("\n")
+          .map((l) => l.replace(/^[-*]\s*/, "").trim())
+          .filter(Boolean)
+          .join(" ");
+        if (text) criteria.push(text);
+      }
+    }
+    return { title, description, criteria: criteria.length > 0 ? criteria : [""] };
+  };
+
+  const handleLoadSample = async () => {
+    setLoadingSample(true);
+    setSampleError(null);
+    try {
+      const res = await fetch("/api/sample-story");
+      const data = (await res.json()) as { content?: string; error?: string };
+      if (!res.ok || !data.content) {
+        setSampleError(data.error ?? "Unable to load the sample story.");
+        return;
+      }
+      const parsed = parseSampleStory(data.content);
+      setTitle(parsed.title);
+      setDescription(parsed.description);
+      setCriteria(parsed.criteria);
+    } catch {
+      setSampleError("Unable to load the sample story.");
+    } finally {
+      setLoadingSample(false);
+    }
+  };
+
   const inputCls =
     "w-full rounded-lg border border-border bg-bg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent/50 focus:outline-none focus:ring-1 focus:ring-accent/30";
 
@@ -282,6 +335,33 @@ export default function RequirementsPage() {
                 <p className="text-sm text-error">{apiError}</p>
               </div>
             )}
+
+            {sampleError && (
+              <p className="text-sm text-error">{sampleError}</p>
+            )}
+
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleLoadSample}
+                  disabled={loadingSample || running || generating || generatingData}
+                  aria-label="Load Sample Story"
+                  className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:bg-surface-elevated hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loadingSample && (
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  )}
+                  {loadingSample ? "Loading sample..." : "Load Sample Story"}
+                </button>
+                <span className="text-xs text-text-muted">
+                  Try the included demo login story
+                </span>
+              </div>
+            </div>
 
             <div className="flex items-center justify-between">
               <button

@@ -120,6 +120,7 @@ export function computeQualityReport(args: {
   const requirementGaps = analysis?.gaps.length ?? 0;
 
   const report: QualityReport = {
+    requirementId: requirement?.id ?? "",
     requirementCoverage,
     testCoverage,
     traceabilityScore,
@@ -130,6 +131,7 @@ export function computeQualityReport(args: {
     approvedTests: approved,
     rejectedTests: rejected,
     overallScore: 0,
+    findings: [],
   };
   report.overallScore = overallFromQuality(report);
   return report;

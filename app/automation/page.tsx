@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { useWorkflow } from "@/lib/state/workflow-provider";
-import { generateAutomationBatch } from "@/agents/automation-agent";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Card } from "@/components/ui/primitives";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -12,9 +11,10 @@ import type { AutomationArtifact } from "@/types/qa";
 
 export default function AutomationPage() {
   const { state, setAutomationArtifacts } = useWorkflow();
-  const { testCases, testData, automationArtifacts } = state;
+  const { requirement, testCases, testData, automationArtifacts } = state;
   const [selected, setSelected] = useState<AutomationArtifact | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const approvedCases = testCases.filter((tc) => tc.reviewStatus === "approved");
   const alreadyGenerated = new Set(automationArtifacts.map((a) => a.testCaseId));
@@ -22,13 +22,36 @@ export default function AutomationPage() {
 
   const handleGenerate = async () => {
     setGenerating(true);
-    // Deterministic generation, brief async to feel intentional.
-    await new Promise((r) => setTimeout(r, 400));
-    const newArtifacts = generateAutomationBatch(candidates, testData);
-    const combined = [...automationArtifacts, ...newArtifacts];
-    setAutomationArtifacts(combined);
-    if (newArtifacts.length > 0) setSelected(newArtifacts[0]);
-    setGenerating(false);
+    setError(null);
+    const newArtifacts: AutomationArtifact[] = [];
+    try {
+      for (const tc of candidates) {
+        const data = testData.find((td) => td.testCaseId === tc.id);
+        if (!data) continue;
+        const res = await fetch("/api/automation/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            testCase: tc,
+            testData: data,
+            requirement,
+          }),
+        });
+        const body = (await res.json()) as { artifact?: AutomationArtifact; error?: string };
+        if (!res.ok) {
+          setError(body.error ?? "Unable to generate automation.");
+          break;
+        }
+        if (body.artifact) newArtifacts.push(body.artifact);
+      }
+      const combined = [...automationArtifacts, ...newArtifacts];
+      setAutomationArtifacts(combined);
+      if (newArtifacts.length > 0) setSelected(newArtifacts[0]);
+    } catch {
+      setError("AI service is temporarily unavailable.");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   const download = (artifact: AutomationArtifact) => {
@@ -71,6 +94,12 @@ export default function AutomationPage() {
           </a>
           .
         </div>
+
+        {error && (
+          <div role="alert" className="mt-4 rounded-lg border border-error/20 bg-error/5 px-4 py-3 text-sm text-error">
+            {error}
+          </div>
+        )}
 
         {testCases.length === 0 ? (
           <div className="mt-6">
