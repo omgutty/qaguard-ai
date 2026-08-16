@@ -31,7 +31,7 @@ export default function Header() {
       <div className="flex items-center gap-3">
         <span className="hidden items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 font-mono text-[11px] font-medium text-text-secondary sm:inline-flex">
           <span className={cx("h-1.5 w-1.5 rounded-full bg-success")} />
-          Phase 1 · Mock AI
+          Phase 2 · Real AI
         </span>
 
         {/* Theme toggle */}

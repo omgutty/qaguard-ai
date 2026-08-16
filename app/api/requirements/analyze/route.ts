@@ -1,8 +1,5 @@
 import { connection, NextResponse } from "next/server";
 import { analyzeRequirement, RequirementAgentError } from "@/agents/requirement-agent";
-import { generateTestCases } from "@/agents/test-engine-agent";
-import { generateTestData } from "@/agents/test-data-agent";
-import { generateQualityReport } from "@/agents/quality-agent";
 import { validateRequirementInput } from "@/lib/validation/requirement";
 import { makeId } from "@/lib/utils/traceability";
 import type { Requirement } from "@/types/qa";
@@ -18,8 +15,8 @@ interface AnalyzeBody {
 /**
  * POST /api/requirements/analyze
  * Browser → this route (server) → Requirement Agent → OpenRouter → validated JSON.
- * The downstream mock agents (test cases, test data, quality) also run here so
- * the rest of the governed workflow keeps working server-side.
+ * Returns only the requirement + analysis; test case generation happens in a
+ * separate step via /api/test-cases/generate.
  */
 export async function POST(request: Request) {
   // Next.js 16: await connection() to opt into dynamic rendering so
@@ -61,25 +58,7 @@ export async function POST(request: Request) {
 
   try {
     const analysis = await analyzeRequirement(requirement);
-
-    // Downstream mock pipeline (unchanged Phase 1 agents) so the workflow
-    // continues to the test cases / test data / review / quality pages.
-    const testCases = generateTestCases(requirement, analysis);
-    const testData = testCases.map((tc) => generateTestData(tc));
-    const qualityReport = generateQualityReport({
-      requirement,
-      analysis,
-      testCases,
-      artifacts: [],
-    });
-
-    return NextResponse.json({
-      requirement,
-      analysis,
-      testCases,
-      testData,
-      qualityReport,
-    });
+    return NextResponse.json({ requirement, analysis });
   } catch (err) {
     if (err instanceof RequirementAgentError) {
       const status =

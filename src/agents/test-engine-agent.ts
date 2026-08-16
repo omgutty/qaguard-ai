@@ -1,300 +1,235 @@
-// Test Engine Agent — deterministic mock test case generation (Phase 1).
-// Phase 2: swap internals for an LLM call, keep generateTestCases() signature.
+// Test Engine Agent — real LLM implementation (Phase 2 Step 3).
+// Calls the existing OpenRouter provider (src/lib/ai) from the server only.
+// The deterministic mock is preserved in test-engine-agent.mock.ts.
 
-import { makeId } from "@/lib/utils/traceability";
-import type {
-  Requirement,
-  RequirementAnalysis,
-  TestCase,
-  TestCaseType,
-  TestDataSource,
-} from "@/types/qa";
+import {
+  generateStructuredResponse,
+  getResponseText,
+  OpenRouterError,
+  parseJsonResponse,
+  type OpenRouterChatMessage,
+} from "@/lib/ai";
+import { validateTestCases } from "@/lib/validation/test-cases";
+import type { Requirement, RequirementAnalysis, TestCase } from "@/types/qa";
 
-/** Wrap a requirement sentence into a verifiable assertion phrase. */
-function criterionPhrase(criterion: string): string {
-  return criterion.trim().replace(/\.$/, "");
-}
+// ---------------------------------------------------------------------------
+// Prompt
+// ---------------------------------------------------------------------------
 
-function buildPositiveCases(
-  requirement: Requirement,
-  criteria: string[]
-): TestCase[] {
-  const cases: TestCase[] = [];
-  criteria.forEach((raw, idx) => {
-    const criterion = criterionPhrase(raw);
-    const number = idx + 1;
-    cases.push({
-      id: makeId("TC"),
-      requirementId: requirement.id,
-      title: `Valid submission: ${criterion.slice(0, 48)}`,
-      description: `Verifies the acceptance criterion "${criterion}" is met on the happy path.`,
-      type: "positive",
-      priority: "high",
-      source: `Acceptance Criteria #${number}` as TestDataSource,
-      preconditions: ["User has access to the feature."],
-      steps: [
+export const TEST_ENGINE_PROMPT_VERSION = "1.0";
+
+function buildSystemPrompt(): string {
+  return [
+    "You are a senior QA test engineer specializing in test case design.",
+    "",
+    "Your job is to generate high-quality, executable test cases from a supplied Requirement and its RequirementAnalysis.",
+    "",
+    "GROUNDING RULES (most important):",
+    "- Use ONLY information contained in the supplied Requirement and RequirementAnalysis.",
+    "- Do not invent business rules, UI elements, API endpoints, database behavior, validation rules, or integrations.",
+    "- Do not fabricate expected results.",
+    "- If information is missing, you may create an appropriate coverage/gap test ONLY when justified by the RequirementAnalysis.",
+    "",
+    "TEST COVERAGE:",
+    "- Generate meaningful QA test cases covering applicable categories: positive/happy path, negative scenarios, boundary conditions, validation, authorization/security (only when supported by the requirement), error handling, relevant edge cases, regression coverage where justified.",
+    "- Do NOT blindly generate every category if it is not applicable to the supplied requirement.",
+    "",
+    "QUALITY:",
+    "- Avoid duplicate test cases and trivial variations.",
+    "- Each test case must have a clear objective.",
+    "- Preconditions must be explicit where required.",
+    "- Test steps must be executable and unambiguous.",
+    "- Expected results must be observable and testable.",
+    "",
+    "TRACEABILITY:",
+    "- Every test case must identify what requirement or analysis item caused it to be generated.",
+    "- Use the `source` field: \"Acceptance Criteria #N\" (when grounded in a specific criterion) or \"AI-Derived\" (when inferred from the analysis).",
+    "- Set `requirementId` exactly to the requirement id supplied.",
+    "",
+    "OUTPUT FORMAT (STRICT — you MUST use exactly these values, nothing else):",
+    "Return ONLY a JSON object conforming EXACTLY to this shape:",
+    `{
+      "testCases": [
         {
-          stepNumber: 1,
-          action: "Open the feature and begin a new submission.",
-          testData: "Valid representative input",
-          expectedResult: "The submission form is displayed without errors.",
-        },
-        {
-          stepNumber: 2,
-          action: `Submit with the expected inputs (${criterion}).`,
-          testData: criterion,
-          expectedResult: criterion,
-        },
-        {
-          stepNumber: 3,
-          action: "Confirm the success state.",
-          testData: "—",
-          expectedResult:
-            "The system confirms the action succeeded and the result is visible.",
-        },
-      ],
-      expectedResult: criterion,
-      reviewStatus: "pending",
-    });
-  });
-  return cases;
+          "id": "TC-XXXX",
+          "requirementId": "<the exact requirement id supplied>",
+          "title": "Clear test case title",
+          "description": "Objective of the test case",
+          "type": "positive",
+          "priority": "high",
+          "source": "Acceptance Criteria #1",
+          "preconditions": ["Explicit precondition"],
+          "steps": [
+            { "stepNumber": 1, "action": "Executable action", "testData": "input used", "expectedResult": "observable outcome" }
+          ],
+          "expectedResult": "Overall observable expected outcome",
+          "reviewStatus": "pending"
+        }
+      ]
+    }`,
+    "ALLOWED VALUES (STRICT ENUMS — do not use any other values):",
+    "- type: exactly one of [positive, negative, boundary, validation, security, regression]",
+    "- priority: exactly one of [low, medium, high, critical]",
+    "- reviewStatus: exactly one of [pending, approved, rejected, modified] — always start with \"pending\"",
+    "- source: either \"Acceptance Criteria #N\" (N = the criterion number from the requirement, e.g. #1, #2, #3) or \"AI-Derived\"",
+    "- steps: non-empty array; each step has stepNumber (integer >= 1), action (string), testData (string), expectedResult (string)",
+    "",
+    "VALIDATION REMINDER:",
+    "- type MUST be one of the six enum values above. Never use \"functional\", \"smoke\", \"e2e\", \"usability\", or any other word.",
+    "- reviewStatus MUST be one of the four enum values above. Never use \"draft\", \"new\", \"open\", or any other word.",
+    "- Every test case MUST have a non-empty title, description, expectedResult, and at least one step.",
+    "- Do not include fields outside this shape.",
+  ].join("\n");
 }
 
-function buildNegativeCase(requirement: Requirement): TestCase {
-  return {
-    id: makeId("TC"),
-    requirementId: requirement.id,
-    title: "Rejection of invalid or empty input",
-    description:
-      "Confirms the system rejects clearly invalid input and surfaces an actionable error rather than failing silently.",
-    type: "negative",
-    priority: "high",
-    source: "AI-Derived",
-    preconditions: ["User has access to the feature."],
-    steps: [
-      {
-        stepNumber: 1,
-        action: "Begin a new submission.",
-        testData: "Empty / blank inputs",
-        expectedResult: "Submit is disabled or shows a validation message.",
-      },
-      {
-        stepNumber: 2,
-        action: "Enter clearly invalid values and submit.",
-        testData: "Invalid format, out-of-range values",
-        expectedResult:
-          "The system shows a clear error and does not create a record.",
-      },
-      {
-        stepNumber: 3,
-        action: "Attempt to proceed after the error.",
-        testData: "—",
-        expectedResult:
-          "No partial record is created; the user can correct and retry.",
-      },
-    ],
-    expectedResult:
-      "Invalid input is rejected with a clear, actionable error message and no record is created.",
-    reviewStatus: "pending",
-  };
-}
-
-function buildBoundaryCase(requirement: Requirement): TestCase {
-  return {
-    id: makeId("TC"),
-    requirementId: requirement.id,
-    title: "Boundary values for input limits",
-    description:
-      "Verifies behavior at and around minimum/maximum input boundaries where off-by-one defects commonly hide.",
-    type: "boundary",
-    priority: "medium",
-    source: "AI-Derived",
-    preconditions: ["User has access to the feature."],
-    steps: [
-      {
-        stepNumber: 1,
-        action: "Enter the minimum acceptable value for each field.",
-        testData: "Minimum boundary values",
-        expectedResult: "Input is accepted or rejected per defined limits.",
-      },
-      {
-        stepNumber: 2,
-        action: "Enter the maximum acceptable value for each field.",
-        testData: "Maximum boundary values",
-        expectedResult: "Input is accepted or rejected per defined limits.",
-      },
-      {
-        stepNumber: 3,
-        action: "Enter one unit above the maximum and one below the minimum.",
-        testData: "Over/under boundary values",
-        expectedResult:
-          "The system enforces the limit with a clear validation message.",
-      },
-    ],
-    expectedResult:
-      "Boundary values behave per the defined limits, including a clean rejection just outside them.",
-    reviewStatus: "pending",
-  };
-}
-
-function buildValidationCase(requirement: Requirement): TestCase {
-  return {
-    id: makeId("TC"),
-    requirementId: requirement.id,
-    title: "Validation of field formats and required fields",
-    description:
-      "Checks required-field and format validation across the input form.",
-    type: "validation",
-    priority: "medium",
-    source: "AI-Derived",
-    preconditions: ["User has access to the feature."],
-    steps: [
-      {
-        stepNumber: 1,
-        action: "Leave all required fields empty and submit.",
-        testData: "All fields empty",
-        expectedResult:
-          "Each required field shows a validation message.",
-      },
-      {
-        stepNumber: 2,
-        action: "Enter malformed values (bad email, bad format).",
-        testData: "Malformed values",
-        expectedResult:
-          "Format validation rejects the input with specific errors.",
-      },
-      {
-        stepNumber: 3,
-        action: "Correct the errors and resubmit.",
-        testData: "Valid corrected values",
-        expectedResult: "Submission proceeds past validation.",
-      },
-    ],
-    expectedResult:
-      "Required and formatted fields are validated with specific, recoverable error messages.",
-    reviewStatus: "pending",
-  };
-}
-
-function buildSecurityCase(requirement: Requirement): TestCase {
-  return {
-    id: makeId("TC"),
-    requirementId: requirement.id,
-    title: "Unauthorized access is blocked",
-    description:
-      "Confirms unauthenticated/unauthorized users cannot reach protected functionality.",
-    type: "security",
-    priority: "critical",
-    source: "AI-Derived",
-    preconditions: ["The user is not authenticated, or lacks the required role."],
-    steps: [
-      {
-        stepNumber: 1,
-        action: "Attempt to access the feature while unauthenticated.",
-        testData: "Unauthenticated session",
-        expectedResult:
-          "Access is redirected to sign-in or blocked with 401.",
-      },
-      {
-        stepNumber: 2,
-        action: "Attempt to access with a role lacking permission.",
-        testData: "Insufficient-role account",
-        expectedResult:
-          "Access is denied; sensitive data is not exposed.",
-      },
-      {
-        stepNumber: 3,
-        action: "Inspect the response for sensitive leakage.",
-        testData: "—",
-        expectedResult:
-          "No sensitive data (credentials, PII, internal ids) is returned.",
-      },
-    ],
-    expectedResult:
-      "Unauthorized access is blocked and no sensitive data leaks.",
-    reviewStatus: "pending",
-  };
-}
-
-function buildRegressionCase(requirement: Requirement): TestCase {
-  return {
-    id: makeId("TC"),
-    requirementId: requirement.id,
-    title: "Regression: core flow remains intact after changes",
-    description:
-      "Guard test — re-runs the primary acceptance flow to catch regressions introduced by future changes.",
-    type: "regression",
-    priority: "medium",
-    source: "AI-Derived",
-    preconditions: ["The feature is deployed to the target environment."],
-    steps: [
-      {
-        stepNumber: 1,
-        action: "Execute the primary end-to-end flow for this requirement.",
-        testData: "Representative happy-path data",
-        expectedResult: "The primary flow completes successfully.",
-      },
-      {
-        stepNumber: 2,
-        action: "Verify previously-fixed defect scenarios still pass.",
-        testData: "Historical defect cases",
-        expectedResult: "No previously-fixed defect regresses.",
-      },
-    ],
-    expectedResult:
-      "Core behavior remains stable after changes; no regression is introduced.",
-    reviewStatus: "pending",
-  };
-}
-
-export function generateTestCases(
+function buildUserMessage(
   requirement: Requirement,
   analysis: RequirementAnalysis
-): TestCase[] {
-  const criteria = requirement.acceptanceCriteria.filter((c) => c.trim());
+): string {
+  return [
+    "Generate test cases for the following requirement.",
+    "",
+    "REQUIREMENT:",
+    JSON.stringify(
+      {
+        id: requirement.id,
+        title: requirement.title,
+        description: requirement.description,
+        acceptanceCriteria: requirement.acceptanceCriteria,
+      },
+      null,
+      2
+    ),
+    "",
+    "REQUIREMENT ANALYSIS (use as grounding context, do not reinterpret the requirement independently):",
+    JSON.stringify(
+      {
+        overallScore: analysis.overallScore,
+        completenessScore: analysis.completenessScore,
+        clarityScore: analysis.clarityScore,
+        testabilityScore: analysis.testabilityScore,
+        gaps: analysis.gaps.map((g) => ({
+          type: g.type,
+          description: g.description,
+          source: g.source,
+        })),
+        risks: analysis.risks.map((r) => ({
+          severity: r.severity,
+          description: r.description,
+        })),
+      },
+      null,
+      2
+    ),
+    "",
+    `Set requirementId on every test case exactly to: ${requirement.id}`,
+  ].join("\n");
+}
 
-  if (criteria.length === 0) {
-    return [];
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+export type TestEngineAgentErrorCode =
+  | "missing_api_key"
+  | "provider_error"
+  | "invalid_response"
+  | "empty_response";
+
+/** Controlled, user-safe error. Never serialize `cause` to the client. */
+export class TestEngineAgentError extends Error {
+  code: TestEngineAgentErrorCode;
+  userMessage: string;
+  cause?: Error;
+
+  constructor(
+    code: TestEngineAgentErrorCode,
+    userMessage: string,
+    cause?: Error
+  ) {
+    super(userMessage);
+    this.name = "TestEngineAgentError";
+    this.code = code;
+    this.userMessage = userMessage;
+    this.cause = cause;
   }
+}
 
-  const cases: TestCase[] = [];
-  cases.push(...buildPositiveCases(requirement, criteria));
-
-  const derived: { build: (r: Requirement) => TestCase; type: TestCaseType }[] = [
-    { build: buildNegativeCase, type: "negative" },
-    { build: buildBoundaryCase, type: "boundary" },
-    { build: buildValidationCase, type: "validation" },
-  ];
-
-  // Security case only when the requirement mentions auth/sensitive handling.
-  const text = `${requirement.title} ${requirement.description} ${criteria.join(
-    " "
-  )}`.toLowerCase();
-  if (/(password|auth|login|session|permission|role|ssn|card|secret)/i.test(text)) {
-    derived.push({ build: buildSecurityCase, type: "security" });
+function toAgentError(err: unknown): TestEngineAgentError {
+  if (err instanceof TestEngineAgentError) return err;
+  if (err instanceof OpenRouterError) {
+    switch (err.code) {
+      case "missing_api_key":
+      case "invalid_api_key":
+        return new TestEngineAgentError(
+          "missing_api_key",
+          "AI service is temporarily unavailable.",
+          err
+        );
+      case "rate_limited":
+        return new TestEngineAgentError(
+          "provider_error",
+          "AI service is busy. Please try again.",
+          err
+        );
+      case "invalid_json":
+      case "empty_response":
+        return new TestEngineAgentError(
+          "invalid_response",
+          "AI returned an unexpected response. Please try again.",
+          err
+        );
+      default:
+        return new TestEngineAgentError(
+          "provider_error",
+          "AI service is temporarily unavailable.",
+          err
+        );
+    }
   }
-
-  // Regression case when the analysis flagged gaps that future changes may reintroduce.
-  if (analysis.gaps.length > 0 || analysis.testabilityScore < 60) {
-    derived.push({ build: buildRegressionCase, type: "regression" });
-  }
-
-  derived.forEach((d) => {
-    cases.push(d.build(requirement));
-  });
-
-  // Attach stable, non-conflicting type ordering: positive first, then derived.
-  const typeOrder: TestCaseType[] = [
-    "positive",
-    "negative",
-    "boundary",
-    "validation",
-    "security",
-    "regression",
-  ];
-  cases.sort(
-    (a, b) => typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type)
+  return new TestEngineAgentError(
+    "provider_error",
+    "Unable to generate test cases. Please try again.",
+    err instanceof Error ? err : undefined
   );
+}
 
-  return cases;
+// ---------------------------------------------------------------------------
+// Public API (server-side)
+// ---------------------------------------------------------------------------
+
+/**
+ * Generate test cases via the real LLM (OpenRouter).
+ * Server-side only — never import into client components.
+ * Throws TestEngineAgentError with a safe userMessage on failure.
+ */
+export async function generateTestCases(
+  requirement: Requirement,
+  analysis: RequirementAnalysis
+): Promise<TestCase[]> {
+  const messages: OpenRouterChatMessage[] = [
+    { role: "system", content: buildSystemPrompt() },
+    { role: "user", content: buildUserMessage(requirement, analysis) },
+  ];
+
+  try {
+    const response = await generateStructuredResponse(messages, {
+      json: true,
+      temperature: 0.2,
+      maxTokens: 4096,
+    });
+
+    const text = getResponseText(response);
+    if (!text || !text.trim()) {
+      throw new OpenRouterError(
+        "OpenRouter returned an empty response.",
+        "empty_response"
+      );
+    }
+
+    const raw = parseJsonResponse<unknown>(response);
+    return validateTestCases(raw, requirement.id);
+  } catch (err) {
+    throw toAgentError(err);
+  }
 }

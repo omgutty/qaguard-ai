@@ -18,6 +18,9 @@ import { Badge } from "@/components/ui/badge";
 interface AnalyzeResponse {
   requirement: Requirement;
   analysis: RequirementAnalysis;
+}
+
+interface GenerateResponse {
   testCases: TestCase[];
   testData: TestData[];
   qualityReport: QualityReport;
@@ -33,6 +36,7 @@ export default function RequirementsPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [apiError, setApiError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const { analysis } = state;
 
@@ -60,6 +64,7 @@ export default function RequirementsPage() {
     setRunning(true);
 
     try {
+      // Step 1: Requirement Analysis (real LLM via server route).
       const res = await fetch("/api/requirements/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -84,13 +89,49 @@ export default function RequirementsPage() {
 
       setRequirement(data.requirement ?? null);
       setAnalysis(data.analysis ?? null);
+      setRunning(false);
+
+      // Step 2: Test Case Generation (real LLM via server route).
+      if (data.requirement && data.analysis) {
+        await handleGenerateTestCases(data.requirement, data.analysis);
+      }
+    } catch {
+      setApiError("AI service is temporarily unavailable.");
+      setRunning(false);
+    }
+  };
+
+  const handleGenerateTestCases = async (
+    requirement: Requirement,
+    analysis: RequirementAnalysis
+  ) => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/test-cases/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requirement, analysis }),
+      });
+
+      const data = (await res.json()) as Partial<GenerateResponse> & {
+        error?: string;
+      };
+
+      if (!res.ok) {
+        setApiError(
+          data.error ?? "Unable to generate test cases. Please try again."
+        );
+        setGenerating(false);
+        return;
+      }
+
       setTestCases(data.testCases ?? []);
       setTestData(data.testData ?? []);
       setQualityReport(data.qualityReport ?? null);
     } catch {
       setApiError("AI service is temporarily unavailable.");
     } finally {
-      setRunning(false);
+      setGenerating(false);
     }
   };
 
@@ -206,10 +247,14 @@ export default function RequirementsPage() {
               <button
                 type="button"
                 onClick={handleAnalyze}
-                disabled={running}
+                disabled={running || generating}
                 className="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent/90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {running ? "Analyzing requirement..." : "Analyze Requirement"}
+                {running
+                  ? "Analyzing requirement..."
+                  : generating
+                    ? "Generating test cases..."
+                    : "Analyze Requirement"}
               </button>
               <span className="text-xs text-text-muted">
                 Powered by OpenRouter · DeepSeek

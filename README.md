@@ -14,26 +14,76 @@ QAGuard AI closes that loop with a governed, human-in-the-middle pipeline.
 
 ## Solution
 
-A guided workflow that derives a requirement's analysis, test cases, test data, and automation candidates — and requires human approval before anything is automated. Every artifact carries traceability back to the requirement, and a quality dashboard proves coverage in one screen.
+A guided workflow that derives a requirement's analysis, test cases, test data, and automation candidates — and requires **human approval before anything is automated**. Every artifact carries traceability back to the requirement, and a quality dashboard proves coverage in one screen.
 
-## V1 Workflow (fixed)
+The pipeline is powered by a real LLM (OpenRouter → DeepSeek V4 Flash) for requirement analysis and test case generation, with the remaining pipeline stages running on deterministic mock agents.
+
+## Live Demo
+
+- **Deployed app:** [https://qaguard-ai.vercel.app](https://qaguard-ai.vercel.app)
+- **Source code:** [https://github.com/omgutty/qaguard-ai](https://github.com/omgutty/qaguard-ai)
+
+## Screenshots
+
+_Coming soon — add screenshots of the dashboard, requirement analysis, test cases, and quality pages here._
+
+---
+
+## V1 Workflow
+
+The fixed end-to-end workflow:
 
 ```
 Requirement Analysis → Test Generation → Test Data → Human Review
         → Playwright Generation → AI Quality / Traceability Dashboard
 ```
 
-## Features
+## What Was Built — V1 (Application Shell & Mock Pipeline)
 
-- **Requirement Analysis** — deterministic scores (Completeness / Clarity / Testability / Overall), gaps, risks, and recommendations derived from the actual requirement text
-- **Test Generation** — typed test cases (positive, negative, boundary, validation, security, regression) each with source traceability (acceptance criterion or AI-derived)
+Phase 1 delivered the complete working application shell running entirely on **deterministic mock AI logic** (no LLM, no network calls):
+
+- **Requirement Analysis (mock)** — deterministic scores (Completeness / Clarity / Testability / Overall), gaps, risks, and recommendations derived from the actual requirement text
+- **Test Generation (mock)** — typed test cases (positive, negative, boundary, validation, security, regression) each with source traceability (acceptance criterion or AI-derived)
 - **Test Data** — realistic datasets per test case, with sensitive values masked and a reveal toggle; generated vs. edited badges
 - **Human Review** — the governance gate: approve / reject / edit each test case. Unapproved cases cannot be automated
 - **Automation** — Playwright TypeScript generated only for approved test cases, with copy + download
 - **Quality & Traceability Dashboard** — overall quality score, coverage metrics, AI confidence, and a live pipeline flow with counts at every stage
 - **Dark/Light theme** — enterprise dark theme by default with a global light-mode toggle (persisted via localStorage, no page reload)
-- **Dark, data-dense UI** — score rings, monospace IDs, status color grammar, first-class empty/error states
-- **Session persistence** — shared client state survives navigation (no database in Phase 1)
+- **Session persistence** — shared client state survives navigation (no database)
+
+## What Was Built — V2 (Real AI Integration)
+
+Phase 2 replaced the mock internals with a **real LLM** through a secure, server-only OpenRouter provider:
+
+### Secure OpenRouter Provider
+- Server-only abstraction at `src/lib/ai/openrouter.ts` — `generateStructuredResponse()` calls the OpenRouter chat completions API
+- Reads `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` from server environment variables (default model: `deepseek/deepseek-v4-flash`)
+- Structured JSON responses, typed error handling (missing/invalid key, rate limit, empty response, invalid JSON, network failure)
+- The barrel (`src/lib/ai/index.ts`) imports `server-only`, so importing it into any client component fails the build
+- The API key is never exposed to the browser, logs, or API responses
+
+### Real Requirement Agent
+- `analyzeRequirement()` now calls the real LLM and returns a validated `RequirementAnalysis`
+- Grounding rules enforce that the model uses **only** the supplied requirement as factual evidence — no invented business rules, UI, or behavior
+- Scores (completeness / clarity / testability / overall) are justified by the requirement, not random
+- Response validated field-by-field before it reaches the UI (`src/lib/validation/analysis.ts`)
+
+### Real Test Engine Agent
+- `generateTestCases()` now calls the real LLM and returns validated, typed `TestCase[]`
+- Generates meaningful coverage (positive, negative, boundary, validation, security, regression) grounded in the requirement + analysis
+- Every test case carries traceability (`requirementId`, source = `Acceptance Criteria #N` or `AI-Derived`)
+- Response validated field-by-field (`src/lib/validation/test-cases.ts`) — malformed output is rejected, never silently repaired
+
+### Server-Side API Routes
+- `POST /api/requirements/analyze` — requirement input → Requirement Agent → validated `RequirementAnalysis`
+- `POST /api/test-cases/generate` — requirement + analysis → Test Engine Agent → validated `TestCase[]` (plus downstream mock test data & quality report)
+- The browser only talks to these routes; OpenRouter is never called from client code
+- Safe, user-friendly error messages (no API keys, URLs, or stack traces)
+
+### Human Review Compatibility
+- The governance gate is unchanged: reviewers still approve / reject / edit test cases, and only approved cases proceed to automation (Automation Agent is a later step)
+
+---
 
 ## Tech Stack
 
@@ -43,37 +93,12 @@ Requirement Analysis → Test Generation → Test Data → Human Review
 | Language | TypeScript (strict, no `any`) |
 | Styling | Tailwind CSS v4 |
 | State | React Context (`WorkflowProvider`) |
+| Theme | Custom dark/light tokens + `useSyncExternalStore` (no theme library) |
+| AI Provider | OpenRouter |
+| LLM Model | DeepSeek V4 Flash (`deepseek/deepseek-v4-flash`) |
 | Deploy | Vercel / GitHub |
 
-## Project Structure
-
-```
-src/
-├── agents/                  # Deterministic mock AI agents (Phase 1)
-│   ├── requirement-agent.ts #   analyzeRequirement()
-│   ├── test-engine-agent.ts #   generateTestCases()
-│   ├── test-data-agent.ts   #   generateTestData()
-│   ├── automation-agent.ts  #   generateAutomation()
-│   └── quality-agent.ts     #   generateQualityReport()
-├── app/                     # App Router routes
-│   ├── page.tsx             #   Dashboard (/)
-│   ├── requirements/        #   Requirement entry + analysis
-│   ├── test-cases/          #   Generated test cases
-│   ├── test-data/           #   Generated test data
-│   ├── review/              #   Human review / governance gate
-│   ├── automation/          #   Playwright generation
-│   └── quality/             #   Quality & traceability dashboard
-├── components/              # Shared UI (Sidebar, Header, ui/*, ThemeProvider)
-├── lib/
-│   ├── ai/                  # OpenRouter provider (server-only, Phase 2 boundary)
-│   ├── state/               # WorkflowProvider (client state)
-│   ├── utils/               # Traceability + scoring helpers
-│   └── validation/          # Input validation
-└── types/
-    └── qa.ts                # Data contracts (strict, union types)
-```
-
-## How to Run Locally
+## How to Run
 
 ```bash
 npm install
@@ -82,42 +107,77 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+**AI requires an API key.** Create `.env.local` from the example:
+
 ```bash
-npm run lint       # ESLint
-npm run build      # Production build + typecheck
-npm run verify:ai  # Verify the OpenRouter provider config/errors (no API call)
+cp .env.local.example .env.local
 ```
 
-## Current Phase
-
-> **Phase 1 uses deterministic mock AI responses.** Real LLM integration will be added in Phase 2.
-
-Every "AI" output is a real TypeScript function that inspects the actual input and computes a believable result — no hardcoded copy-paste, no network calls, no API keys required.
-
-## Future AI Integration (Phase 2)
-
-The agent layer is designed so mock internals can be swapped for real LLM calls **without changing any public function signature**:
+Then add your OpenRouter key:
 
 ```
-requirement-agent.ts   → analyzeRequirement()
-test-engine-agent.ts   → generateTestCases()
-test-data-agent.ts     → generateTestData()
-automation-agent.ts    → generateAutomation()
-quality-agent.ts       → generateQualityReport()
+OPENROUTER_API_KEY=sk-or-v1-...
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash
 ```
 
-Phase 2 will add an LLM provider behind `src/lib/ai/` with the same contract. No Langflow, no n8n, no MCP, no RAG, no database in Phase 1.
+Useful scripts:
 
-## OpenRouter Provider (Phase 2 foundation)
+```bash
+npm run lint          # ESLint
+npm run build         # Production build + typecheck
+npm run verify:ai     # Verify OpenRouter provider config (no API call)
+npm run verify:agent  # Verify Requirement Agent validation/errors (no API call)
+npm run verify:engine # Verify Test Engine Agent validation/errors (no API call)
+```
 
-A server-only provider abstraction exists at `src/lib/ai/`:
+## Project Structure
 
-- `openrouter.ts` — `generateStructuredResponse()` calling the OpenRouter chat completions API with `OPENROUTER_API_KEY` and `OPENROUTER_MODEL` (default `deepseek/deepseek-v4-flash`), structured JSON support, and typed error handling
-- `types.ts` — OpenRouter request/response types
-- The barrel (`index.ts`) imports `server-only`, so importing it into any client component fails the build
+```
+src/
+├── agents/                        # Agents (real LLM + preserved mocks)
+│   ├── requirement-agent.ts       #   analyzeRequirement() — real LLM
+│   ├── requirement-agent.mock.ts  #   Phase 1 deterministic mock
+│   ├── test-engine-agent.ts       #   generateTestCases() — real LLM
+│   ├── test-engine-agent.mock.ts  #   Phase 1 deterministic mock
+│   ├── test-data-agent.ts         #   generateTestData() — mock
+│   ├── automation-agent.ts        #   generateAutomation() — mock
+│   └── quality-agent.ts           #   generateQualityReport() — mock
+├── app/                           # App Router routes + API
+│   ├── page.tsx                   #   Dashboard (/)
+│   ├── requirements/              #   Requirement entry + analysis
+│   ├── test-cases/                #   Generated test cases
+│   ├── test-data/                 #   Generated test data
+│   ├── review/                    #   Human review / governance gate
+│   ├── automation/                #   Playwright generation
+│   ├── quality/                   #   Quality & traceability dashboard
+│   └── api/
+│       ├── requirements/analyze/  #   POST — Requirement Agent
+│       └── test-cases/generate/   #   POST — Test Engine Agent
+├── components/                    # Shared UI (Sidebar, Header, ui/*, ThemeProvider)
+├── lib/
+│   ├── ai/                        # OpenRouter provider (server-only)
+│   ├── state/                     # WorkflowProvider (client state)
+│   ├── utils/                     # Traceability + scoring helpers
+│   └── validation/                # analysis.ts, test-cases.ts, requirement.ts
+└── types/
+    └── qa.ts                      # Data contracts (strict, union types)
+```
 
-The API key is never exposed to the browser. Copy `.env.local.example` to `.env.local` and add your key when ready. The current agents remain deterministic mocks until Phase 2 Step 2 wires them to this provider.
+## Security
+
+- `OPENROUTER_API_KEY` lives only in server-side environment variables (`.env.local`, gitignored)
+- No `NEXT_PUBLIC_` key exposure — the browser never sees the key
+- The OpenRouter provider is server-only; client components cannot import it
+- LLM output is validated server-side before reaching the UI
+- Errors returned to users are sanitized (no keys, URLs, or stack traces)
 
 ## Deployment
 
-The project is Vercel-ready: static prerendering, no env vars required, no build-time secrets. Connect the repository to Vercel and it deploys as-is.
+The project is Vercel-ready. Set the environment variables in the Vercel dashboard:
+
+```
+OPENROUTER_API_KEY=<your key>
+OPENROUTER_MODEL=deepseek/deepseek-v4-flash
+```
+
+Live demo: [https://qaguard-ai.vercel.app](https://qaguard-ai.vercel.app)
